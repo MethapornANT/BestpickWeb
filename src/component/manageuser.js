@@ -82,7 +82,7 @@ const theme = createTheme({
         },
         background: {
             default: '#E0E0E0', // Overall grey background
-            paper: '#FFFFFF',   // Pure White for cards/containers
+            paper: '#FFFFFF',  // Pure White for cards/containers
         },
         text: {
             primary: '#212121',
@@ -325,7 +325,8 @@ const ManageUsers = () => {
     const location = useLocation();
 
     const [users, setUsers] = useState([]);
-    const [openDialog, setOpenDialog] = useState(false);
+    const [openEditDialog, setOpenEditDialog] = useState(false); // Changed state name for clarity
+    const [openConfirmDeleteDialog, setOpenConfirmDeleteDialog] = useState(false); // New state for delete confirmation
     const [selectedUser, setSelectedUser] = useState(null);
     const [isDrawerOpen, setDrawerOpen] = useState(false);
 
@@ -366,31 +367,46 @@ const ManageUsers = () => {
 
     const handleOpenEdit = (user) => {
         setSelectedUser(user);
-        setOpenDialog(true);
+        setOpenEditDialog(true);
     };
 
-    const handleCloseDialog = () => {
-        setOpenDialog(false);
+    const handleCloseEditDialog = () => {
+        setOpenEditDialog(false);
         setSelectedUser(null);
     };
 
-    const handleDeleteUser = async (userId) => {
+    const handleOpenConfirmDelete = (user) => { // New function to open delete confirmation
+        setSelectedUser(user);
+        setOpenConfirmDeleteDialog(true);
+    };
+
+    const handleCloseConfirmDeleteDialog = () => { // New function to close delete confirmation
+        setOpenConfirmDeleteDialog(false);
+        setSelectedUser(null);
+    };
+
+    const confirmDeleteUser = async () => { // New function to handle the actual deletion after confirmation
         const token = localStorage.getItem('token');
         try {
-            await axios.delete(`${process.env.REACT_APP_BASE_URL}/admin/users/${userId}`, {
+            await axios.delete(`${process.env.REACT_APP_BASE_URL}/admin/users/${selectedUser.id}`, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
             });
-            setUsers(users.filter(user => user.id !== userId));
+            setUsers(users.filter(user => user.id !== selectedUser.id));
+            handleCloseConfirmDeleteDialog(); // Close dialog after successful deletion
         } catch (error) {
             console.error('Error deleting user:', error);
             if (error.response && error.response.status === 401) {
                 handleLogout();
                 navigate('/login');
             }
+            // Optionally, show an error message to the user
+            alert('Failed to delete user. Please try again.');
+            handleCloseConfirmDeleteDialog(); // Close dialog even if deletion fails
         }
     };
+
 
     const handleMenuClick = () => {
         setDrawerOpen(!isDrawerOpen);
@@ -413,7 +429,7 @@ const ManageUsers = () => {
                 });
                 setUsers(users.map(user => (user.id === selectedUser.id ? { ...user, status: selectedUser.status } : user)));
             }
-            setOpenDialog(false);
+            setOpenEditDialog(false);
         } catch (error) {
             console.error('Error updating user status:', error);
             if (error.response && error.response.status === 401) {
@@ -577,9 +593,9 @@ const ManageUsers = () => {
                                         <TableCell sx={{ minWidth: '80px' }}>
                                           <Box sx={{ display: 'flex', justifyContent: 'center' }}>
                                               {/* Display Avatar if picture is available, otherwise a default */}
-                                              {user.picture ? ( // <--- เปลี่ยนจาก user.avatar_url เป็น user.picture
+                                              {user.picture ? (
                                                   <Avatar
-                                                      src={`${process.env.REACT_APP_BASE_URL}${user.picture}`} // <--- เปลี่ยนจาก user.avatar_url[0] เป็น user.picture
+                                                      src={`${process.env.REACT_APP_BASE_URL}${user.picture}`}
                                                       alt={`Avatar of ${user.username}`}
                                                       sx={{ width: 50, height: 50 }}
                                                   />
@@ -589,7 +605,7 @@ const ManageUsers = () => {
                                                   </Avatar>
                                               )}
                                           </Box>
-                                      </TableCell>
+                                        </TableCell>
                                         <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '80px' }}>{user.id}</TableCell>
                                         <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '150px' }}>{user.email}</TableCell>
                                         <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '120px' }}>{user.username}</TableCell>
@@ -602,7 +618,8 @@ const ManageUsers = () => {
                                             <IconButton onClick={() => handleOpenEdit(user)}>
                                                 <EditIcon sx={{ color: theme.palette.chartBlue.main }}/>
                                             </IconButton>
-                                            <IconButton onClick={() => handleDeleteUser(user.id)}>
+                                            {/* เปลี่ยนไปเรียก handleOpenConfirmDelete แทน handleDeleteUser โดยตรง */}
+                                            <IconButton onClick={() => handleOpenConfirmDelete(user)}>
                                                 <DeleteIcon sx={{ color: theme.palette.chartPink.main }}/>
                                             </IconButton>
                                         </TableCell>
@@ -612,7 +629,8 @@ const ManageUsers = () => {
                         </Table>
                     </TableContainer>
 
-                    <Dialog open={openDialog} onClose={handleCloseDialog}>
+                    {/* Dialog for Editing User Status */}
+                    <Dialog open={openEditDialog} onClose={handleCloseEditDialog}>
                         <DialogTitle sx={{ color: theme.palette.text.primary }}>Edit User</DialogTitle>
                         <DialogContent>
                             <FormControl fullWidth margin="dense" sx={{ mt: 2 }}>
@@ -625,13 +643,30 @@ const ManageUsers = () => {
                                     fullWidth
                                 >
                                     <MenuItem value="active">Active</MenuItem>
-                                    <MenuItem value="deactive">Deactive</MenuItem>
+                                    <MenuItem value="deactivated">Deactivated</MenuItem> {/* Corrected 'deactive' to 'deactivated' to match backend */}
                                 </Select>
                             </FormControl>
                         </DialogContent>
                         <DialogActions>
-                            <Button onClick={handleCloseDialog} sx={{ color: theme.palette.text.secondary }}>Cancel</Button>
+                            <Button onClick={handleCloseEditDialog} sx={{ color: theme.palette.text.secondary }}>Cancel</Button>
                             <Button onClick={handleSaveUser} variant="contained" sx={{ bgcolor: theme.palette.primary.main, color: theme.palette.primary.contrastText }}>Save</Button>
+                        </DialogActions>
+                    </Dialog>
+
+                    {/* New Dialog for Delete Confirmation */}
+                    <Dialog open={openConfirmDeleteDialog} onClose={handleCloseConfirmDeleteDialog}>
+                        <DialogTitle sx={{ color: theme.palette.text.primary }}>Confirm Deletion</DialogTitle>
+                        <DialogContent>
+                            <Typography>
+                                Are you sure you want to soft delete user "{selectedUser?.username}" (ID: {selectedUser?.id})?
+                                This will also hard delete all their posts and follows. This action cannot be undone.
+                            </Typography>
+                        </DialogContent>
+                        <DialogActions>
+                            <Button onClick={handleCloseConfirmDeleteDialog} sx={{ color: theme.palette.text.secondary }}>Cancel</Button>
+                            <Button onClick={confirmDeleteUser} variant="contained" color="error">
+                                Confirm Delete
+                            </Button>
                         </DialogActions>
                     </Dialog>
                 </Box>
