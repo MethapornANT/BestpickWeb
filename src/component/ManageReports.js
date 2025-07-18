@@ -6,7 +6,7 @@ import {
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     IconButton, Dialog, DialogActions, DialogContent, DialogTitle,
     FormControl, InputLabel, Select, MenuItem, CssBaseline,
-    Drawer, List, ListItem, ListItemText, Avatar
+    Drawer, List, ListItem, ListItemText, Avatar, TextField
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import EditIcon from '@mui/icons-material/Edit';
@@ -18,6 +18,7 @@ import AddCircleIcon from '@mui/icons-material/AddCircle';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
+import SearchIcon from '@mui/icons-material/Search';
 import { useAuth } from '../AuthContext';
 
 import { createTheme, ThemeProvider, styled } from '@mui/material/styles';
@@ -337,6 +338,8 @@ const ManageReportedPosts = () => {
     const [openDialog, setOpenDialog] = useState(false);
     const [selectedPost, setSelectedPost] = useState(null);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState(''); // สำหรับ TextField ค้นหา
+    const [currentSearchTerm, setCurrentSearchTerm] = useState(''); // สำหรับส่งไป fetchReportedPosts
 
     const menuItems = [
         { text: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
@@ -355,18 +358,42 @@ const ManageReportedPosts = () => {
         }
     }, [isAdmin, navigate]);
 
-    const fetchReportedPosts = async () => {
+    // Debounce searchQuery -> currentSearchTerm
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setCurrentSearchTerm(searchQuery);
+        }, 300);
+        return () => clearTimeout(handler);
+    }, [searchQuery]);
+
+    // เรียก fetchReportedPosts ทุกครั้งที่ currentSearchTerm เปลี่ยน
+    useEffect(() => {
+        fetchReportedPosts(currentSearchTerm);
+        // eslint-disable-next-line
+    }, [currentSearchTerm]);
+
+    // ปรับ fetchReportedPosts ให้รองรับ query
+    const fetchReportedPosts = async (query = '') => {
         const token = localStorage.getItem('token');
         try {
-            const response = await axios.get(`${process.env.REACT_APP_BASE_URL}/admin/reported-posts`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
+            let url;
+            if (query) {
+                url = `${process.env.REACT_APP_BASE_URL}/admin/search/reports?q=${encodeURIComponent(query)}`;
+            } else {
+                url = `${process.env.REACT_APP_BASE_URL}/admin/reported-posts`;
+            }
+            const response = await axios.get(url, {
+                headers: { Authorization: `Bearer ${token}` },
             });
-            console.log("Fetched Reported Posts (Raw Data):", response.data); // Log raw data
-            setReportedPosts(response.data);
+            if (Array.isArray(response.data)) {
+                setReportedPosts(response.data);
+            } else if (response.data && Array.isArray(response.data.results)) {
+                setReportedPosts(response.data.results);
+            } else {
+                setReportedPosts([]);
+            }
         } catch (error) {
-            console.error('Error fetching reported posts:', error);
+            setReportedPosts([]);
             if (error.response && error.response.status === 401) {
                 handleLogout();
                 navigate('/login');
@@ -594,6 +621,20 @@ const ManageReportedPosts = () => {
                         Manage Reported Posts
                     </Typography>
 
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
+                        <TextField
+                            variant="outlined"
+                            size="small"
+                            placeholder="ค้นหารายงาน (ID, Post ID, Username, เหตุผล, สถานะ...)"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            InputProps={{
+                                startAdornment: <SearchIcon sx={{ mr: 1, color: 'action.active' }} />,
+                            }}
+                            sx={{ width: { xs: '100%', sm: 'auto' }, mb: { xs: 2, sm: 0 }, flexGrow: 1, mr: { sm: 2 } }}
+                        />
+                    </Box>
+
                     <TableContainer component={MainContentPaper} sx={{ maxWidth: '1200px', width: '100%' }}>
                         <Table>
                             <TableHead>
@@ -609,44 +650,52 @@ const ManageReportedPosts = () => {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {sortedReportedPosts.map((report) => (
-                                    <TableRow key={report.report_id}>
-                                        <TableCell>
-                                            {getFirstPhotoUrl(report.post_image_url) ? (
-                                                <img
-                                                    src={getFirstPhotoUrl(report.post_image_url)}
-                                                    alt="Post"
-                                                    style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: '4px' }}
-                                                />
-                                            ) : (
-                                                <Avatar variant="rounded" sx={{ width: 50, height: 50, bgcolor: theme.palette.grey[300] }}>
-                                                    No Img
-                                                </Avatar>
-                                            )}
-                                        </TableCell>
-                                        <TableCell sx={{ color: theme.palette.text.secondary }}>{report.actual_post_id}</TableCell>
-                                        <TableCell sx={{ color: theme.palette.text.secondary }}>{report.post_title}</TableCell>
-                                        <TableCell sx={{ color: theme.palette.text.secondary }}>{report.reported_by_username}</TableCell>
-                                        <TableCell sx={{ color: theme.palette.text.secondary }}>{report.reason}</TableCell>
-                                        <TableCell sx={{ color: theme.palette.text.secondary }}>
-                                            {new Date(report.reported_at).toLocaleDateString('en-US', {
-                                                year: 'numeric',
-                                                month: 'long',
-                                                day: 'numeric',
-                                                hour: '2-digit',
-                                                minute: '2-digit',
-                                                second: '2-digit',
-                                                hour12: false
-                                            })}
-                                        </TableCell>
-                                        <TableCell sx={{ color: theme.palette.text.secondary }}>{report.status}</TableCell>
-                                        <TableCell>
-                                            <IconButton onClick={() => handleEdit(report)}>
-                                                <EditIcon sx={{ color: theme.palette.chartBlue.main }} />
-                                            </IconButton>
+                                {sortedReportedPosts.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={8} align="center">
+                                            ไม่พบรายการรายงาน
                                         </TableCell>
                                     </TableRow>
-                                ))}
+                                ) : (
+                                    sortedReportedPosts.map((report) => (
+                                        <TableRow key={report.report_id}>
+                                            <TableCell>
+                                                {getFirstPhotoUrl(report.post_image_url) ? (
+                                                    <img
+                                                        src={getFirstPhotoUrl(report.post_image_url)}
+                                                        alt="Post"
+                                                        style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: '4px' }}
+                                                    />
+                                                ) : (
+                                                    <Avatar variant="rounded" sx={{ width: 50, height: 50, bgcolor: theme.palette.grey[300] }}>
+                                                        No Img
+                                                    </Avatar>
+                                                )}
+                                            </TableCell>
+                                            <TableCell sx={{ color: theme.palette.text.secondary }}>{report.actual_post_id}</TableCell>
+                                            <TableCell sx={{ color: theme.palette.text.secondary }}>{report.post_title}</TableCell>
+                                            <TableCell sx={{ color: theme.palette.text.secondary }}>{report.reported_by_username}</TableCell>
+                                            <TableCell sx={{ color: theme.palette.text.secondary }}>{report.reason}</TableCell>
+                                            <TableCell sx={{ color: theme.palette.text.secondary }}>
+                                                {new Date(report.reported_at).toLocaleDateString('en-US', {
+                                                    year: 'numeric',
+                                                    month: 'long',
+                                                    day: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                    second: '2-digit',
+                                                    hour12: false
+                                                })}
+                                            </TableCell>
+                                            <TableCell sx={{ color: theme.palette.text.secondary }}>{report.status}</TableCell>
+                                            <TableCell>
+                                                <IconButton onClick={() => handleEdit(report)}>
+                                                    <EditIcon sx={{ color: theme.palette.chartBlue.main }} />
+                                                </IconButton>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
                             </TableBody>
                         </Table>
                     </TableContainer>

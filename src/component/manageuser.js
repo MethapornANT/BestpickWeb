@@ -8,7 +8,8 @@ import {
     Drawer, List, ListItem, ListItemText, FormControl,
     InputLabel, Select, MenuItem,
     CssBaseline,
-    Avatar // Import Avatar component
+    Avatar, // Import Avatar component
+    TextField // Import TextField component
 } from '@mui/material';
 import axios from 'axios';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -21,6 +22,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
+import SearchIcon from '@mui/icons-material/Search';
 import { useAuth } from '../AuthContext';
 
 import { createTheme, ThemeProvider, styled } from '@mui/material/styles';
@@ -329,6 +331,37 @@ const ManageUsers = () => {
     const [openConfirmDeleteDialog, setOpenConfirmDeleteDialog] = useState(false); // New state for delete confirmation
     const [selectedUser, setSelectedUser] = useState(null);
     const [isDrawerOpen, setDrawerOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState(''); // สำหรับ TextField ค้นหา
+    const [currentSearchTerm, setCurrentSearchTerm] = useState(''); // สำหรับส่งไป fetchUsers
+
+    const fetchUsers = async (query = '') => {
+        const token = localStorage.getItem('token');
+        try {
+            let url;
+            if (query) {
+                url = `${process.env.REACT_APP_BASE_URL}/admin/search/users?q=${encodeURIComponent(query)}`;
+            } else {
+                url = `${process.env.REACT_APP_BASE_URL}/admin/users`;
+            }
+            const response = await axios.get(url, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (Array.isArray(response.data)) {
+                setUsers(response.data);
+            } else if (response.data && Array.isArray(response.data.results)) {
+                setUsers(response.data.results);
+            } else {
+                setUsers([]);
+            }
+        } catch (error) {
+            setUsers([]);
+            console.error('Error fetching users:', error);
+            if (error.response && error.response.status === 401) {
+                handleLogout();
+                navigate('/login');
+            }
+        }
+    };
 
     const menuItems = [
         { text: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
@@ -347,23 +380,19 @@ const ManageUsers = () => {
         }
     }, [isAdmin, navigate]);
 
-    const fetchUsers = async () => {
-        const token = localStorage.getItem('token');
-        try {
-            const response = await axios.get(`${process.env.REACT_APP_BASE_URL}/admin/users`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
-            setUsers(response.data);
-        } catch (error) {
-            console.error('Error loading users:', error);
-            if (error.response && error.response.status === 401) {
-                handleLogout();
-                navigate('/login');
-            }
-        }
-    };
+    // Debounce searchQuery -> currentSearchTerm
+    useEffect(() => {
+      const handler = setTimeout(() => {
+        setCurrentSearchTerm(searchQuery);
+      }, 300);
+      return () => clearTimeout(handler);
+    }, [searchQuery]);
+
+    // เรียก fetchUsers ทุกครั้งที่ currentSearchTerm เปลี่ยน
+    useEffect(() => {
+      fetchUsers(currentSearchTerm);
+      // eslint-disable-next-line
+    }, [currentSearchTerm]);
 
     const handleOpenEdit = (user) => {
         setSelectedUser(user);
@@ -571,6 +600,19 @@ const ManageUsers = () => {
                     >
                         Manage Users
                     </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
+                        <TextField
+                            variant="outlined"
+                            size="small"
+                            placeholder="ค้นหาผู้ใช้ (ID, email, username, ...)"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            InputProps={{
+                                startAdornment: <SearchIcon sx={{ mr: 1, color: 'action.active' }} />,
+                            }}
+                            sx={{ width: { xs: '100%', sm: 'auto' }, mb: { xs: 2, sm: 0 }, flexGrow: 1, mr: { sm: 2 } }}
+                        />
+                    </Box>
                     <TableContainer component={MainContentPaper} sx={{ maxWidth: '1200px', width: '100%' }}>
                         <Table>
                             <TableHead>
@@ -588,43 +630,51 @@ const ManageUsers = () => {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {users.map(user => (
-                                    <TableRow key={user.id}>
-                                        <TableCell sx={{ minWidth: '80px' }}>
-                                          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                                              {/* Display Avatar if picture is available, otherwise a default */}
-                                              {user.picture ? (
-                                                  <Avatar
-                                                      src={`${process.env.REACT_APP_BASE_URL}${user.picture}`}
-                                                      alt={`Avatar of ${user.username}`}
-                                                      sx={{ width: 50, height: 50 }}
-                                                  />
-                                              ) : (
-                                                  <Avatar sx={{ width: 50, height: 50 }}>
-                                                      {user.username ? user.username[0].toUpperCase() : 'U'}
-                                                  </Avatar>
-                                              )}
-                                          </Box>
-                                        </TableCell>
-                                        <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '80px' }}>{user.id}</TableCell>
-                                        <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '150px' }}>{user.email}</TableCell>
-                                        <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '120px' }}>{user.username}</TableCell>
-                                        <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '120px' }}>{new Date(user.birthday).toLocaleDateString('en-US')}</TableCell>
-                                        <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '80px' }}>{user.gender}</TableCell>
-                                        <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '60px' }}>{user.age}</TableCell>
-                                        <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '80px' }}>{user.role}</TableCell>
-                                        <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '100px' }}>{user.status}</TableCell>
-                                        <TableCell sx={{ minWidth: '100px' }}>
-                                            <IconButton onClick={() => handleOpenEdit(user)}>
-                                                <EditIcon sx={{ color: theme.palette.chartBlue.main }}/>
-                                            </IconButton>
-                                            {/* เปลี่ยนไปเรียก handleOpenConfirmDelete แทน handleDeleteUser โดยตรง */}
-                                            <IconButton onClick={() => handleOpenConfirmDelete(user)}>
-                                                <DeleteIcon sx={{ color: theme.palette.chartPink.main }}/>
-                                            </IconButton>
+                                {users.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={10} align="center">
+                                            ไม่พบผู้ใช้
                                         </TableCell>
                                     </TableRow>
-                                ))}
+                                ) : (
+                                    users.map(user => (
+                                        <TableRow key={user.id}>
+                                            <TableCell sx={{ minWidth: '80px' }}>
+                                              <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                                                  {/* Display Avatar if picture is available, otherwise a default */}
+                                                  {user.picture ? (
+                                                      <Avatar
+                                                          src={`${process.env.REACT_APP_BASE_URL}${user.picture}`}
+                                                          alt={`Avatar of ${user.username}`}
+                                                          sx={{ width: 50, height: 50 }}
+                                                      />
+                                                  ) : (
+                                                      <Avatar sx={{ width: 50, height: 50 }}>
+                                                          {user.username ? user.username[0].toUpperCase() : 'U'}
+                                                      </Avatar>
+                                                  )}
+                                              </Box>
+                                            </TableCell>
+                                            <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '80px' }}>{user.id}</TableCell>
+                                            <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '150px' }}>{user.email}</TableCell>
+                                            <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '120px' }}>{user.username}</TableCell>
+                                            <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '120px' }}>{new Date(user.birthday).toLocaleDateString('en-US')}</TableCell>
+                                            <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '80px' }}>{user.gender}</TableCell>
+                                            <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '60px' }}>{user.age}</TableCell>
+                                            <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '80px' }}>{user.role}</TableCell>
+                                            <TableCell sx={{ color: theme.palette.text.secondary, minWidth: '100px' }}>{user.status}</TableCell>
+                                            <TableCell sx={{ minWidth: '100px' }}>
+                                                <IconButton onClick={() => handleOpenEdit(user)}>
+                                                    <EditIcon sx={{ color: theme.palette.chartBlue.main }}/>
+                                                </IconButton>
+                                                {/* เปลี่ยนไปเรียก handleOpenConfirmDelete แทน handleDeleteUser โดยตรง */}
+                                                <IconButton onClick={() => handleOpenConfirmDelete(user)}>
+                                                    <DeleteIcon sx={{ color: theme.palette.chartPink.main }}/>
+                                                </IconButton>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
                             </TableBody>
                         </Table>
                     </TableContainer>

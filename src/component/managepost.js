@@ -40,6 +40,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
+import SearchIcon from '@mui/icons-material/Search';
 import { useAuth } from '../AuthContext';
 
 import { createTheme, ThemeProvider, styled } from '@mui/material/styles';
@@ -362,6 +363,8 @@ const ManagePosts = () => {
   const [selectedPost, setSelectedPost] = useState(null);
   const [postIdToDelete, setPostIdToDelete] = useState(null); // New state to store ID of post to be deleted
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(''); // สำหรับ TextField ค้นหา
+  const [currentSearchTerm, setCurrentSearchTerm] = useState(''); // สำหรับส่งไป fetchPosts
 
   const menuItems = [
     { text: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
@@ -380,18 +383,42 @@ const ManagePosts = () => {
     }
   }, [isAdmin, navigate]);
 
-  const fetchPosts = async () => {
+  // Debounce searchQuery -> currentSearchTerm
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setCurrentSearchTerm(searchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  // เรียก fetchPosts ทุกครั้งที่ currentSearchTerm เปลี่ยน
+  useEffect(() => {
+    fetchPosts(currentSearchTerm);
+    // eslint-disable-next-line
+  }, [currentSearchTerm]);
+
+  // ปรับ fetchPosts ให้รองรับ query
+  const fetchPosts = async (query = '') => {
     const token = localStorage.getItem('token');
     try {
-      const response = await axios.get(`${process.env.REACT_APP_BASE_URL}/admin/posts`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      let url;
+      if (query) {
+        url = `${process.env.REACT_APP_BASE_URL}/admin/search/posts?q=${encodeURIComponent(query)}`;
+      } else {
+        url = `${process.env.REACT_APP_BASE_URL}/admin/posts`;
+      }
+      const response = await axios.get(url, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      console.log("Fetched Posts:", response.data);
-      setPosts(response.data);
+      if (Array.isArray(response.data)) {
+        setPosts(response.data);
+      } else if (response.data && Array.isArray(response.data.results)) {
+        setPosts(response.data.results);
+      } else {
+        setPosts([]);
+      }
     } catch (error) {
-      console.error('Error fetching posts:', error);
+      setPosts([]);
       if (error.response && error.response.status === 401) {
         handleLogout();
         navigate('/login');
@@ -566,7 +593,6 @@ const ManagePosts = () => {
             <List>
               {menuItems.map((item) => (
                 <ListItem
-                  button
                   key={item.text}
                   component={Link}
                   to={item.path}
@@ -612,10 +638,25 @@ const ManagePosts = () => {
                 Manage Posts
             </Typography>
 
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
+            <TextField
+              variant="outlined"
+              size="small"
+              placeholder="ค้นหาโพสต์ (ID, Title, Content, ProductName, ...)"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: <SearchIcon sx={{ mr: 1, color: 'action.active' }} />, 
+              }}
+              sx={{ width: { xs: '100%', sm: 'auto' }, mb: { xs: 2, sm: 0 }, flexGrow: 1, mr: { sm: 2 } }}
+            />
+          </Box>
+
           <TableContainer component={MainContentPaper} sx={{ maxWidth: '1200px', width: '100%' }}>
             <Table>
               <TableHead>
                 <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold', color: theme.palette.text.primary }}>ID</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', color: theme.palette.text.primary }}>Image</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', color: theme.palette.text.primary }}>Title</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', color: theme.palette.text.primary }}>Content</TableCell>
@@ -625,36 +666,45 @@ const ManagePosts = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {posts.map((post) => (
-                  <TableRow key={post.id}>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                        {/* Ensure post.photo_url is an array of strings */}
-                        {Array.isArray(post.photo_url) && post.photo_url.map((url, index) => (
-                          <img
-                            key={index}
-                            src={`${process.env.REACT_APP_BASE_URL}${url}`}
-                            alt={`Post ${post.Title}`}
-                            style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0, 0, 0, 0.2)' }}
-                          />
-                        ))}
-                      </Box>
-                    </TableCell>
-                    <TableCell sx={{ color: theme.palette.text.secondary }}>{post.Title}</TableCell>
-                    <TableCell sx={{ color: theme.palette.text.secondary }}>{post.content}</TableCell>
-                    <TableCell sx={{ color: theme.palette.text.secondary }}>{post.ProductName}</TableCell>
-                    <TableCell sx={{ color: theme.palette.text.secondary }}>{post.status.toLowerCase()}</TableCell>
-                    <TableCell>
-                      <IconButton onClick={() => handleEdit(post)}>
-                        <EditIcon sx={{ color: theme.palette.chartBlue.main }}/>
-                      </IconButton>
-                      {/* --- Call handleConfirmDelete here --- */}
-                      <IconButton onClick={() => handleConfirmDelete(post.id)}>
-                        <DeleteIcon sx={{ color: theme.palette.chartPink.main }}/>
-                      </IconButton>
+                {posts.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center">
+                      ไม่พบโพสต์
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  posts.map((post) => (
+                    <TableRow key={post.id}>
+                      <TableCell sx={{ color: theme.palette.text.secondary }}>{post.id}</TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                          {/* Ensure post.photo_url is an array of strings */}
+                          {Array.isArray(post.photo_url) && post.photo_url.map((url, index) => (
+                            <img
+                              key={index}
+                              src={`${process.env.REACT_APP_BASE_URL}${url}`}
+                              alt={`Post ${post.Title}`}
+                              style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0, 0, 0, 0.2)' }}
+                            />
+                          ))}
+                        </Box>
+                      </TableCell>
+                      <TableCell sx={{ color: theme.palette.text.secondary }}>{post.Title}</TableCell>
+                      <TableCell sx={{ color: theme.palette.text.secondary }}>{post.content}</TableCell>
+                      <TableCell sx={{ color: theme.palette.text.secondary }}>{post.ProductName}</TableCell>
+                      <TableCell sx={{ color: theme.palette.text.secondary }}>{post.status.toLowerCase()}</TableCell>
+                      <TableCell>
+                        <IconButton onClick={() => handleEdit(post)}>
+                          <EditIcon sx={{ color: theme.palette.chartBlue.main }}/>
+                        </IconButton>
+                        {/* --- Call handleConfirmDelete here --- */}
+                        <IconButton onClick={() => handleConfirmDelete(post.id)}>
+                          <DeleteIcon sx={{ color: theme.palette.chartPink.main }}/>
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </TableContainer>
