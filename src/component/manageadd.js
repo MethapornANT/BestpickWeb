@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   AppBar, Toolbar, Typography, Button, Box, Paper,
@@ -20,6 +20,7 @@ import AddCircleIcon from '@mui/icons-material/AddCircle';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import CancelIcon from '@mui/icons-material/Cancel';
+import SearchIcon from '@mui/icons-material/Search';
 import { useAuth } from '../AuthContext';
 import { keyframes } from '@emotion/react';
 import { styled } from '@mui/material/styles';
@@ -49,7 +50,7 @@ const bubbleMovement = keyframes`
   100% { transform: translate(0, 0); opacity: 0.1; }
 `;
 
-// --- Custom Theme Definition ---
+// --- Custom Theme Configuration ---
 const theme = createTheme({
   palette: {
     primary: {
@@ -104,25 +105,23 @@ const theme = createTheme({
       dark: '#DA9ACB',
       contrastText: '#1A1A1A',
     },
-    // New colors for success and error buttons (if applicable for status change or actions)
     success: {
-        main: '#4CAF50', // Green for approved/success
-        light: '#81C784',
-        dark: '#388E3C',
-        contrastText: '#FFFFFF',
+      main: '#4CAF50',
+      light: '#81C784',
+      dark: '#388E3C',
+      contrastText: '#FFFFFF',
     },
     error: {
-        main: '#F44336', // Red for rejected/error/delete
-        light: '#E57373',
-        dark: '#D32F2F',
-        contrastText: '#FFFFFF',
+      main: '#F44336',
+      light: '#E57373',
+      dark: '#D32F2F',
+      contrastText: '#FFFFFF',
     },
   },
   typography: {
     fontFamily: ['"Inter"', 'sans-serif'].join(','),
     h3: {
       fontWeight: 700,
-      color: '#212121',
       fontSize: '3.5rem',
       '@media (max-width:960px)': {
         fontSize: '2.8rem',
@@ -133,7 +132,6 @@ const theme = createTheme({
     },
     h4: {
       fontWeight: 600,
-      color: '#212121',
       fontSize: '2.2rem',
       '@media (max-width:960px)': {
         fontSize: '1.8rem',
@@ -144,7 +142,6 @@ const theme = createTheme({
     },
     h5: {
       fontWeight: 600,
-      color: '#212121',
       fontSize: '1.5rem',
       '@media (max-width:600px)': {
         fontSize: '1.2rem',
@@ -261,52 +258,52 @@ const theme = createTheme({
           fontWeight: 500,
           transition: 'transform 0.15s ease-out, background-color 0.15s ease-out, box-shadow 0.15s ease-out',
           '&:hover': {
-            transform: 'translateY(-2px)', // Slightly more pronounced hover
-            boxShadow: '0 6px 12px rgba(0,0,0,0.15)', // More pronounced shadow
+            transform: 'translateY(-2px)',
+            boxShadow: '0 6px 12px rgba(0,0,0,0.15)',
           },
-          '&:active': { // Add active state for a "pressed" effect
+          '&:active': {
             transform: 'translateY(0)',
             boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
           },
         },
         containedPrimary: ({ theme }) => ({
-            backgroundColor: theme.palette.primary.main,
+          backgroundColor: theme.palette.primary.main,
+          color: theme.palette.primary.contrastText,
+          '&:hover': {
+            backgroundColor: theme.palette.primary.dark,
+            boxShadow: '0 6px 12px rgba(0,0,0,0.2)',
+          },
+        }),
+        containedSecondary: ({ theme }) => ({
+          backgroundColor: theme.palette.text.secondary,
+          color: theme.palette.primary.contrastText,
+          '&:hover': {
+            backgroundColor: theme.palette.text.primary,
+          },
+        }),
+        outlinedPrimary: ({ theme }) => ({
+          borderColor: theme.palette.primary.main,
+          color: theme.palette.primary.main,
+          '&:hover': {
+            backgroundColor: theme.palette.primary.light,
             color: theme.palette.primary.contrastText,
-            '&:hover': {
-                backgroundColor: theme.palette.primary.dark,
-                boxShadow: '0 6px 12px rgba(0,0,0,0.2)',
-            },
+            borderColor: theme.palette.primary.light,
+          },
         }),
-        containedSecondary: ({ theme }) => ({ // For Cancel buttons
-            backgroundColor: theme.palette.text.secondary,
-            color: theme.palette.primary.contrastText,
-            '&:hover': {
-                backgroundColor: theme.palette.text.primary,
-            },
-        }),
-        outlinedPrimary: ({ theme }) => ({ // For Upload Image button
-            borderColor: theme.palette.primary.main,
-            color: theme.palette.primary.main,
-            '&:hover': {
-                backgroundColor: theme.palette.primary.light,
-                color: theme.palette.primary.contrastText,
-                borderColor: theme.palette.primary.light,
-            },
-        }),
-        containedError: ({ theme }) => ({ // For Delete button
-            backgroundColor: theme.palette.error.main,
-            color: theme.palette.error.contrastText,
-            '&:hover': {
-                backgroundColor: theme.palette.error.dark,
-                boxShadow: '0 6px 12px rgba(244, 67, 54, 0.2)',
-            },
+        containedError: ({ theme }) => ({
+          backgroundColor: theme.palette.error.main,
+          color: theme.palette.error.contrastText,
+          '&:hover': {
+            backgroundColor: theme.palette.error.dark,
+            boxShadow: '0 6px 12px rgba(244, 67, 54, 0.2)',
+          },
         }),
         textPrimary: ({ theme }) => ({
-            color: theme.palette.text.primary,
-            '&:hover': {
-                backgroundColor: 'rgba(0,0,0,0.02)',
-                color: theme.palette.primary.main,
-            }
+          color: theme.palette.text.primary,
+          '&:hover': {
+            backgroundColor: 'rgba(0,0,0,0.02)',
+            color: theme.palette.primary.main,
+          }
         })
       },
     },
@@ -319,7 +316,7 @@ const theme = createTheme({
           transition: 'background-color 0.2s ease, transform 0.15s ease-out',
           '&:hover': {
             transform: 'translateY(-1px)',
-            backgroundColor: 'rgba(0,0,0,0.05)', // Default hover for icons
+            backgroundColor: 'rgba(0,0,0,0.05)',
           },
 
           ...(ownerState.color === 'edit' && {
@@ -346,32 +343,53 @@ const theme = createTheme({
       }
     },
     MuiTextField: {
-        styleOverrides: {
-            root: ({ theme }) => ({
-                '& label.Mui-focused': {
-                    color: theme.palette.primary.main,
-                },
-                '& .MuiOutlinedInput-root': {
-                    '&.Mui-focused fieldset': {
-                        borderColor: theme.palette.primary.main,
-                    },
-                },
-            }),
-        },
+      styleOverrides: {
+        root: ({ theme }) => ({
+          '& label.Mui-focused': {
+            color: theme.palette.primary.main,
+          },
+          '& .MuiOutlinedInput-root': {
+            '&.Mui-focused fieldset': {
+              borderColor: theme.palette.primary.main,
+            },
+          },
+        }),
+      },
     },
     MuiSelect: {
-        styleOverrides: {
-            root: ({ theme }) => ({
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: theme.palette.primary.main,
-                },
-            }),
+      styleOverrides: {
+        root: ({ theme }) => ({
+          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+            borderColor: theme.palette.primary.main,
+          },
+        }),
+      },
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        root: {
+          borderBottom: '1px solid rgba(224, 224, 224, 1)',
+          padding: '12px 16px',
         },
+        head: {
+          fontWeight: 'bold',
+          backgroundColor: '#f5f5f5',
+        },
+      },
+    },
+    MuiTableRow: {
+      styleOverrides: {
+        root: {
+          '&:last-child td': {
+            borderBottom: 0,
+          },
+        },
+      },
     },
   },
 });
 
-// --- Styled Components ---
+// --- Styled Components for Animations ---
 const AnimatedBackground = styled(Box)(({ theme }) => ({
   position: 'fixed',
   top: 0,
@@ -410,27 +428,32 @@ const AnimatedPaper = styled(Paper)(({ theme }) => ({
   },
 }));
 
-
+// --- ManageAds Component ---
 const ManageAds = () => {
   const { handleLogout, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
+  // State variables
   const [ads, setAds] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [openConfirmDelete, setOpenConfirmDelete] = useState(false);
   const [adToDelete, setAdToDelete] = useState(null);
   const [currentAd, setCurrentAd] = useState({
+    id: null,
     title: '',
     content: '',
     link: '',
-    status: 'rejected',
+    status: 'pending',
     expiration_date: '',
     image: '',
   });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [imageFile, setImageFile] = useState(null);
+  const [searchQuery, setSearchQuery] = useState(''); // ใช้สำหรับ TextField
+  const [currentSearchTerm, setCurrentSearchTerm] = useState(''); // ใช้สำหรับส่งให้ fetchAds
 
+  // Menu items for the drawer navigation
   const menuItems = [
     { text: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
     { text: 'Manage Advertisements', path: '/manageadd', icon: <AddCircleIcon /> },
@@ -440,26 +463,24 @@ const ManageAds = () => {
     { text: 'Manage Categories', path: '/managecategories', icon: <CategoryIcon /> },
   ];
 
+  // Effect to check admin status on component mount
   useEffect(() => {
     if (!isAdmin()) {
       navigate('/login');
     }
   }, [isAdmin, navigate]);
 
-  const handleMenuClick = () => {
-    setIsDrawerOpen(true);
-  };
-
-  const handleDrawerClose = () => {
-    setIsDrawerOpen(false);
-  };
+  // Handlers for UI interactions
+  const handleMenuClick = () => setIsDrawerOpen(true);
+  const handleDrawerClose = () => setIsDrawerOpen(false);
 
   const handleAddClick = () => {
     setCurrentAd({
+      id: null,
       title: '',
       content: '',
       link: '',
-      status: 'rejected',
+      status: 'pending',
       expiration_date: '',
       image: '',
     });
@@ -471,6 +492,7 @@ const ManageAds = () => {
     setCurrentAd({
       ...ad,
       expiration_date: ad.expiration_date ? new Date(ad.expiration_date).toISOString().slice(0, 10) : '',
+      status: ad.status ? ad.status.toLowerCase() : 'pending',
     });
     setOpenDialog(true);
     setImageFile(null);
@@ -489,12 +511,12 @@ const ManageAds = () => {
           Authorization: `Bearer ${token}`,
         },
       });
-      setAds(ads.filter(ad => ad.id !== adToDelete));
       setOpenConfirmDelete(false);
       setAdToDelete(null);
+      fetchAds(currentSearchTerm); // ใช้ currentSearchTerm ในการ fetch หลังลบ
     } catch (error) {
       console.error('Error deleting ad:', error);
-      alert('Failed to delete ad.');
+      alert('Failed to delete ad. Check console for details.');
     }
   };
 
@@ -503,39 +525,92 @@ const ManageAds = () => {
     setAdToDelete(null);
   };
 
-  const fetchAds = async () => {
+  // Callback function to fetch advertisements
+  // Uses useCallback to prevent unnecessary re-creation on re-renders
+  const fetchAds = useCallback(async (query = '') => {
     const token = localStorage.getItem('token');
     try {
-      const response = await axios.get(`${process.env.REACT_APP_BASE_URL}/ads`, {
+      let url;
+      if (query) {
+        url = `${process.env.REACT_APP_BASE_URL}/admin/search/ads?q=${encodeURIComponent(query)}`;
+      } else {
+        url = `${process.env.REACT_APP_BASE_URL}/ads`; 
+      }
+      
+      const response = await axios.get(url, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      setAds(response.data);
+
+      // *** แก้ไขการจัดการ Response จาก Backend ตรงนี้ (ตามที่คุยกัน) ***
+      if (response.data && response.data.message === "No advertisements found") {
+        setAds([]); // ถ้าไม่มีข้อมูล ให้ตั้งค่า ads เป็น array ว่าง
+        console.log(response.data.message); // แสดงข้อความที่ Backend ส่งมา
+      } else if (Array.isArray(response.data)) {
+        setAds(response.data); // ถ้าเป็น array ของโฆษณาโดยตรง (กรณี /ads ทั่วไป)
+      } else if (response.data && Array.isArray(response.data.results)) {
+        setAds(response.data.results); // ถ้า Backend ส่งเป็น { results: [...] } (กรณี search)
+      } else {
+        // กรณีที่ไม่คาดคิด หรือ Backend ส่งข้อมูลไม่เป็นไปตามที่คาด
+        setAds([]);
+        console.error('Unexpected response format:', response.data);
+      }
+
     } catch (error) {
       console.error('Error fetching ads:', error);
+      // *** เพิ่ม setAds([]) ตรงนี้เพื่อป้องกัน ads is not iterable เมื่อเกิด error ***
+      setAds([]); 
+
+      if (error.response) {
+        console.error('Error Response Data:', error.response.data);
+        console.error('Error Response Status:', error.response.status);
+        console.error('Error Response Headers:', error.response.headers);
+      } else if (error.request) {
+        console.error('Error Request:', error.request);
+      } else {
+        console.error('Error Message:', error.message);
+      }
+
+      // Handle specific error statuses
       if (error.response && error.response.status === 401) {
         handleLogout();
         navigate('/login');
       }
+      // ไม่ต้อง alert แบบรวมๆ ว่า server error แล้ว เพราะเราจัดการ response.data.message แล้ว
+      // และ setAds([]) ใน catch block ป้องกัน ads is not iterable
     }
-  };
+  }, [handleLogout, navigate]);
 
+  // Effect for debounced search. Runs when searchQuery changes after a delay.
   useEffect(() => {
-    fetchAds();
-  }, []);
+    const handler = setTimeout(() => {
+      setCurrentSearchTerm(searchQuery); // อัปเดต currentSearchTerm หลังจาก delay
+    }, 300); // 300ms debounce time
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchQuery]); // fetchAds จะถูกเรียกเองเมื่อ currentSearchTerm เปลี่ยน
+
+  // Effect to trigger fetchAds when currentSearchTerm changes
+  useEffect(() => {
+    fetchAds(currentSearchTerm);
+  }, [currentSearchTerm, fetchAds]);
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setCurrentAd({
+      id: null,
       title: '',
       content: '',
       link: '',
-      status: 'rejected',
+      status: 'pending',
       expiration_date: '',
       image: '',
     });
     setImageFile(null);
+    fetchAds(currentSearchTerm); // Fetch ads ใหม่หลังจากปิด dialog (เพิ่ม/แก้ไขเสร็จ)
   };
 
   const handleClearImage = () => {
@@ -550,7 +625,7 @@ const ManageAds = () => {
     formData.append('title', currentAd.title || '');
     formData.append('content', currentAd.content || '');
     formData.append('link', currentAd.link || '');
-    formData.append('status', currentAd.status || 'rejected');
+    formData.append('status', currentAd.status ? currentAd.status.toLowerCase() : 'pending');
 
     if (currentAd.expiration_date) {
       formData.append('expiration_date', currentAd.expiration_date);
@@ -560,41 +635,70 @@ const ManageAds = () => {
       formData.append('image', imageFile);
     } else if (currentAd.image === '') {
       formData.append('image_action', 'clear');
-    } else if (currentAd.image && typeof currentAd.image === 'string') {
-      formData.append('image_url', currentAd.image);
     }
-
 
     try {
       if (currentAd.id) {
-        const response = await axios.put(`${process.env.REACT_APP_BASE_URL}/ads/${currentAd.id}`, formData, {
+        await axios.put(`${process.env.REACT_APP_BASE_URL}/ads/${currentAd.id}`, formData, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'multipart/form-data',
           },
         });
-        setAds(ads.map(ad => (ad.id === currentAd.id ? response.data : ad)));
       } else {
-        const response = await axios.post(`${process.env.REACT_APP_BASE_URL}/ads`, formData, {
+        await axios.post(`${process.env.REACT_APP_BASE_URL}/ads`, formData, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'multipart/form-data',
           },
         });
-        setAds([...ads, response.data]);
       }
       setOpenDialog(false);
-      fetchAds();
+      fetchAds(currentSearchTerm); // ใช้ currentSearchTerm ในการ fetch หลังบันทึก
     } catch (error) {
       if (error.response) {
-        console.error('Error saving ad:', error.response.data);
+        console.error('Error saving ad (Response Data):', error.response.data);
+        console.error('Error saving ad (Response Status):', error.response.status);
         alert(`Error: ${error.response.data.message || 'An error occurred while saving.'}`);
+      } else if (error.request) {
+        console.error('Error saving ad (No Response):', error.request);
+        alert('Error: No response from server. Please check your network or server status.');
       } else {
-        console.error('Error saving ad:', error.message);
+        console.error('Error saving ad (Other):', error.message);
         alert(`Error: ${error.message}`);
       }
     }
   };
+
+  // Define custom sort order for ad statuses
+  const statusOrder = {
+    paid: 1,
+    pending: 2,
+    approved: 3,
+    rejected: 4,
+  };
+
+  // Memoized sorted ads list for performance optimization
+  // *** แก้ไขตรงนี้: ตรวจสอบ ads ก่อนใช้ .map() ***
+  const sortedAds = useMemo(() => {
+    if (!Array.isArray(ads) || ads.length === 0) return []; // ตรวจสอบว่าเป็น array และไม่ว่าง
+
+    return [...ads].sort((a, b) => {
+      const statusA = a.status ? String(a.status).toLowerCase() : 'pending';
+      const statusB = b.status ? String(b.status).toLowerCase() : 'pending';
+
+      const orderA = statusOrder[statusA] || 99;
+      const orderB = statusOrder[statusB] || 99;
+
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+
+      const dateA = new Date(a.created_at);
+      const dateB = new Date(b.created_at);
+      return dateA.getTime() - dateB.getTime();
+    });
+  }, [ads]);
 
   if (!isAdmin()) {
     return (
@@ -679,7 +783,6 @@ const ManageAds = () => {
             <List>
               {menuItems.map((item) => (
                 <ListItem
-                  button
                   key={item.text}
                   component={Link}
                   to={item.path}
@@ -727,13 +830,28 @@ const ManageAds = () => {
                 Manage Advertisements
             </Typography>
 
-            <Button variant="contained" color="primary" onClick={handleAddClick} sx={{ mb: 2 }}>
-              Add New Ad
-            </Button>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
+                <TextField
+                    variant="outlined"
+                    size="small"
+                    placeholder="Search ads (ID, title, content, status...)"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)} // อัปเดต searchQuery ที่ debounce
+                    InputProps={{
+                        startAdornment: <SearchIcon sx={{ mr: 1, color: 'action.active' }} />,
+                    }}
+                    sx={{ width: { xs: '100%', sm: 'auto' }, mb: { xs: 2, sm: 0 }, flexGrow: 1, mr: { sm: 2 } }}
+                />
+                <Button variant="contained" color="primary" onClick={handleAddClick}>
+                    Add New Ad
+                </Button>
+            </Box>
+
             <TableContainer component={AnimatedPaper} sx={{ animation: `${fadeIn} 0.8s ease-out forwards`, animationDelay: '0.3s' }}>
               <Table>
                 <TableHead>
                   <TableRow>
+                    <TableCell>ID</TableCell>
                     <TableCell>Image</TableCell>
                     <TableCell>Title</TableCell>
                     <TableCell>Content</TableCell>
@@ -746,41 +864,58 @@ const ManageAds = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {ads.map((ad) => (
-                    <TableRow key={ad.id}>
-                      <TableCell>
-                        <img
-                          src={`${process.env.REACT_APP_BASE_URL}${ad.image}`}
-                          alt={ad.title}
-                          style={{ width: '100px', height: 'auto', borderRadius: '5px' }}
-                        />
-                      </TableCell>
-                      <TableCell>{ad.title}</TableCell>
-                      <TableCell>{ad.content}</TableCell>
-                      <TableCell>
-                        <a href={ad.link} target="_blank" rel="noopener noreferrer">{ad.link}</a>
-                      </TableCell>
-                      <TableCell>{new Date(ad.created_at).toLocaleString('en-GB')}</TableCell>
-                      <TableCell>{new Date(ad.updated_at).toLocaleString('en-GB')}</TableCell>
-                      <TableCell>
-                        {ad.expiration_date ? new Date(ad.expiration_date).toLocaleString('en-GB') : 'N/A'}
-                      </TableCell>
-                      <TableCell>{ad.status ? ad.status.toLowerCase() : 'N/A'}</TableCell>
-                      <TableCell>
-                        <IconButton onClick={() => handleEdit(ad)} color="edit" sx={{ mr: 1 }}>
-                          <EditIcon />
-                        </IconButton>
-                        <IconButton onClick={() => handleDeleteClick(ad.id)} color="delete">
-                          <DeleteIcon />
-                        </IconButton>
+                  {sortedAds.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={10} align="center">
+                        No advertisements found.
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    sortedAds.map((ad) => (
+                      <TableRow key={ad.id}>
+                        <TableCell>{ad.id}</TableCell>
+                        <TableCell>
+                          {ad.image ? (
+                            // *** ใช้ REACT_APP_BASE_URL นำหน้า image path ***
+                            <img
+                              src={`${process.env.REACT_APP_BASE_URL}${ad.image}`}
+                              alt={ad.title}
+                              style={{ width: '100px', height: 'auto', borderRadius: '5px' }}
+                            />
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">No Image</Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>{ad.title}</TableCell>
+                        <TableCell>{ad.content}</TableCell>
+                        <TableCell>
+                          {ad.link ? (
+                            <a href={ad.link} target="_blank" rel="noopener noreferrer">{ad.link}</a>
+                          ) : (
+                            'N/A'
+                          )}
+                        </TableCell>
+                        <TableCell>{new Date(ad.created_at).toLocaleString('en-GB')}</TableCell>
+                        <TableCell>{new Date(ad.updated_at).toLocaleString('en-GB')}</TableCell>
+                        <TableCell>
+                          {ad.expiration_date ? new Date(ad.expiration_date).toLocaleString('en-GB') : 'N/A'}
+                        </TableCell>
+                        <TableCell>{ad.status ? String(ad.status).toLowerCase() : 'N/A'}</TableCell>
+                        <TableCell>
+                          <IconButton onClick={() => handleEdit(ad)} color="edit" sx={{ mr: 1 }}>
+                            <EditIcon />
+                          </IconButton>
+                          <IconButton onClick={() => handleDeleteClick(ad.id)} color="delete">
+                            <DeleteIcon />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </TableContainer>
 
-            {/* Add/Edit Ad Dialog */}
             <Dialog open={openDialog} onClose={handleCloseDialog} PaperComponent={AnimatedPaper} PaperProps={{ sx: { animationDelay: '0s', '&:hover': { transform: 'none', boxShadow: '0 6px 15px rgba(0,0,0,0.05)' } } }}>
               <DialogTitle>{currentAd.id ? 'Edit Advertisement' : 'Add New Advertisement'}</DialogTitle>
               <DialogContent>
@@ -846,8 +981,8 @@ const ManageAds = () => {
                 {(imageFile || (currentAd.image && currentAd.image !== `${process.env.REACT_APP_BASE_URL}null` && currentAd.image !== `${process.env.REACT_APP_BASE_URL}undefined`)) && (
                     <img
                         src={imageFile ? URL.createObjectURL(imageFile) : `${process.env.REACT_APP_BASE_URL}${currentAd.image}`}
-                        alt="Ad Preview"
-                        style={{ width: '100%', height: 'auto', maxHeight: '200px', objectFit: 'contain', borderRadius: '5px', marginTop: '10px', marginBottom: '10px' }}
+                        alt="Ad preview"
+                        style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'contain', marginBottom: '16px' }}
                     />
                 )}
 
@@ -857,54 +992,49 @@ const ManageAds = () => {
                   type="date"
                   fullWidth
                   variant="outlined"
+                  InputLabelProps={{ shrink: true }}
                   value={currentAd.expiration_date || ''}
                   onChange={(e) => setCurrentAd({ ...currentAd, expiration_date: e.target.value })}
-                  InputLabelProps={{ shrink: true }} // Ensures label is always above for date input
                   sx={{ mb: 2 }}
                 />
-                <FormControl fullWidth margin="dense">
-                  <InputLabel id="status-label">Status</InputLabel>
+                <FormControl fullWidth variant="outlined" sx={{ mb: 2 }}>
+                  <InputLabel>Status</InputLabel>
                   <Select
-                    labelId="status-label"
-                    value={currentAd.status || 'rejected'}
-                    label="Status"
+                    value={currentAd.status || 'pending'}
                     onChange={(e) => setCurrentAd({ ...currentAd, status: e.target.value })}
+                    label="Status"
                   >
+                    <MenuItem value="pending">Pending</MenuItem>
                     <MenuItem value="approved">Approved</MenuItem>
                     <MenuItem value="rejected">Rejected</MenuItem>
+                    <MenuItem value="paid">Paid</MenuItem>
                   </Select>
                 </FormControl>
               </DialogContent>
               <DialogActions>
-                <Button onClick={handleCloseDialog} variant="contained" color="secondary">Cancel</Button>
-                <Button onClick={handleSave} variant="contained" color="primary">Save</Button>
+                <Button onClick={handleCloseDialog} color="secondary">
+                  Cancel
+                </Button>
+                <Button onClick={handleSave} color="primary">
+                  {currentAd.id ? 'Save Changes' : 'Add Advertisement'}
+                </Button>
               </DialogActions>
             </Dialog>
 
-            {/* Delete Confirmation Dialog */}
-            <Dialog
-              open={openConfirmDelete}
-              onClose={handleCancelDelete}
-              aria-labelledby="alert-dialog-title"
-              aria-describedby="alert-dialog-description"
-              PaperComponent={AnimatedPaper} PaperProps={{ sx: { animationDelay: '0s', '&:hover': { transform: 'none', boxShadow: '0 6px 15px rgba(0,0,0,0.05)' } } }}
-            >
-              <DialogTitle id="alert-dialog-title">{"Confirm Deletion"}</DialogTitle>
+            <Dialog open={openConfirmDelete} onClose={handleCancelDelete}>
+              <DialogTitle>Confirm Delete</DialogTitle>
               <DialogContent>
-                <Typography id="alert-dialog-description">
-                  Are you sure you want to delete this advertisement? This action cannot be undone.
-                </Typography>
+                <Typography>Are you sure you want to delete this advertisement?</Typography>
               </DialogContent>
               <DialogActions>
-                <Button onClick={handleCancelDelete} variant="outlined" color="primary">
+                <Button onClick={handleCancelDelete} color="primary">
                   Cancel
                 </Button>
-                <Button onClick={handleConfirmDelete} variant="contained" color="error" autoFocus>
+                <Button onClick={handleConfirmDelete} color="error">
                   Delete
                 </Button>
               </DialogActions>
             </Dialog>
-
           </Box>
         </Box>
       </Box>
