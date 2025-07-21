@@ -19,6 +19,7 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import SearchIcon from '@mui/icons-material/Search';
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import { useAuth } from '../AuthContext';
 
 import { createTheme, ThemeProvider, styled } from '@mui/material/styles';
@@ -344,6 +345,7 @@ const ManageReportedPosts = () => {
     const menuItems = [
         { text: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
         { text: 'Manage Advertisements', path: '/manageadd', icon: <AddCircleIcon /> },
+        { text: 'Manage Order', path: '/manageorder', icon: <ShoppingCartIcon /> },
         { text: 'Manage User', path: '/manageuser', icon: <PeopleIcon /> },
         { text: 'Manage Post', path: '/managepost', icon: <AssignmentIcon /> },
         { text: 'Report posts', path: '/manage-reported-posts', icon: <ReportProblemIcon /> },

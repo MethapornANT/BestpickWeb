@@ -11,6 +11,7 @@ import ManageReportedPosts from './component/ManageReports';
 import ManageCategories from './component/ManageCategories';
 import PrivacyPolicy from './component/PrivacyPolicy';
 import AccountDeletion from './component/AccountDeletion';
+import ManageOrders from './component/manageorder';
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
           <Route path='/managepost' element={<ManagePosts />} />     
           <Route path="/manage-reported-posts" element={<ManageReportedPosts />} />
           <Route path="/managecategories" element={<ManageCategories/>}/>
+          <Route path="/manageorder" element={<ManageOrders/>}/>
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/account-deletion" element={<AccountDeletion />} />
         </Routes>

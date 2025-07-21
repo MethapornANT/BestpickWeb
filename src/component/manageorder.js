@@ -19,12 +19,12 @@ import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import CancelIcon from '@mui/icons-material/Cancel';
 import SearchIcon from '@mui/icons-material/Search';
 import { useAuth } from '../AuthContext';
 import { keyframes } from '@emotion/react';
 import { styled } from '@mui/material/styles';
-import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 
 // --- Keyframes for Animations ---
 const backgroundGradientShift = keyframes`
@@ -429,33 +429,31 @@ const AnimatedPaper = styled(Paper)(({ theme }) => ({
   },
 }));
 
-// --- ManageAds Component ---
-const ManageAds = () => {
+// --- ManageOrders Component ---
+const ManageOrders = () => {
   const { handleLogout, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   // State variables
-  const [ads, setAds] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentSearchTerm, setCurrentSearchTerm] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   const [openConfirmDelete, setOpenConfirmDelete] = useState(false);
-  const [adToDelete, setAdToDelete] = useState(null);
-  const [currentAd, setCurrentAd] = useState({
+  const [orderToDelete, setOrderToDelete] = useState(null);
+  const [currentOrder, setCurrentOrder] = useState({
     id: null,
     title: '',
     content: '',
     link: '',
     status: 'pending',
-    expiration_date: '',
-    image: '',
   });
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [imageFile, setImageFile] = useState(null);
-  const [searchQuery, setSearchQuery] = useState(''); // ใช้สำหรับ TextField
-  const [currentSearchTerm, setCurrentSearchTerm] = useState(''); // ใช้สำหรับส่งให้ fetchAds
-  const [editStatus, setEditStatus] = useState('');
   const [adminNotes, setAdminNotes] = useState('');
+  const [showAdminNotes, setShowAdminNotes] = useState(false);
   const [adminNotesError, setAdminNotesError] = useState('');
+  const [editStatus, setEditStatus] = useState('');
 
   // Menu items for the drawer navigation
   const menuItems = [
@@ -468,256 +466,154 @@ const ManageAds = () => {
     { text: 'Manage Categories', path: '/managecategories', icon: <CategoryIcon /> },
   ];
 
-  // Effect to check admin status on component mount
   useEffect(() => {
     if (!isAdmin()) {
       navigate('/login');
     }
   }, [isAdmin, navigate]);
 
-  // Handlers for UI interactions
   const handleMenuClick = () => setIsDrawerOpen(true);
   const handleDrawerClose = () => setIsDrawerOpen(false);
 
-  const handleAddClick = () => {
-    setCurrentAd({
-      id: null,
-      title: '',
-      content: '',
-      link: '',
-      status: 'pending',
-      expiration_date: '',
-      image: '',
-    });
-    setOpenDialog(true);
-    setImageFile(null);
-  };
-
-  const handleEdit = (ad) => {
-    setCurrentAd({
-      ...ad,
-      expiration_date: ad.expiration_date ? new Date(ad.expiration_date).toISOString().slice(0, 10) : '',
-      status: ad.status ? ad.status.toLowerCase() : 'active',
-    });
-    setEditStatus(ad.status ? ad.status.toLowerCase() : 'active');
-    setAdminNotes('');
-    setAdminNotesError('');
-    setOpenDialog(true);
-  };
-
-  const handleDeleteClick = (adId) => {
-    setAdToDelete(adId);
-    setOpenConfirmDelete(true);
-  };
-
-  const handleConfirmDelete = async () => {
+  // ดึงข้อมูล orders จาก API
+  const fetchOrders = useCallback(async (query = '') => {
     const token = localStorage.getItem('token');
     try {
-      await axios.delete(`${process.env.REACT_APP_BASE_URL}/ads/${adToDelete}`, {
+      const response = await axios.get(`${process.env.REACT_APP_BASE_URL}/admin/orders`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      setOpenConfirmDelete(false);
-      setAdToDelete(null);
-      fetchAds(currentSearchTerm); // ใช้ currentSearchTerm ในการ fetch หลังลบ
-    } catch (error) {
-      console.error('Error deleting ad:', error);
-      alert('Failed to delete ad. Check console for details.');
-    }
-  };
-
-  const handleCancelDelete = () => {
-    setOpenConfirmDelete(false);
-    setAdToDelete(null);
-  };
-
-  // Callback function to fetch advertisements
-  // Uses useCallback to prevent unnecessary re-creation on re-renders
-  const fetchAds = useCallback(async (query = '') => {
-    const token = localStorage.getItem('token');
-    try {
-      let url;
+      let filtered = response.data.filter(order => {
+        const status = order.status ? String(order.status).toLowerCase() : '';
+        return status === 'pending' || status === 'paid';
+      });
+      // filter ด้วย searchQuery ถ้ามี
       if (query) {
-        url = `${process.env.REACT_APP_BASE_URL}/admin/search/ads?q=${encodeURIComponent(query)}`;
-      } else {
-        url = `${process.env.REACT_APP_BASE_URL}/ads`; 
+        const q = query.toLowerCase();
+        filtered = filtered.filter(order =>
+          String(order.id).includes(q) ||
+          (order.title && order.title.toLowerCase().includes(q)) ||
+          (order.content && order.content.toLowerCase().includes(q)) ||
+          (order.status && order.status.toLowerCase().includes(q)) ||
+          (order.user_id && String(order.user_id).includes(q))
+        );
       }
-      
-      const response = await axios.get(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      // *** แก้ไขการจัดการ Response จาก Backend ตรงนี้ (ตามที่คุยกัน) ***
-      if (response.data && response.data.message === "No advertisements found") {
-        setAds([]); // ถ้าไม่มีข้อมูล ให้ตั้งค่า ads เป็น array ว่าง
-        console.log(response.data.message); // แสดงข้อความที่ Backend ส่งมา
-      } else if (Array.isArray(response.data)) {
-        setAds(response.data); // ถ้าเป็น array ของโฆษณาโดยตรง (กรณี /ads ทั่วไป)
-      } else if (response.data && Array.isArray(response.data.results)) {
-        setAds(response.data.results); // ถ้า Backend ส่งเป็น { results: [...] } (กรณี search)
-      } else {
-        // กรณีที่ไม่คาดคิด หรือ Backend ส่งข้อมูลไม่เป็นไปตามที่คาด
-        setAds([]);
-        console.error('Unexpected response format:', response.data);
-      }
-
+      // เรียงตาม updated_at (ใหม่ -> เก่า)
+      filtered.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+      setOrders(filtered);
     } catch (error) {
-      console.error('Error fetching ads:', error);
-      // *** เพิ่ม setAds([]) ตรงนี้เพื่อป้องกัน ads is not iterable เมื่อเกิด error ***
-      setAds([]); 
-
-      if (error.response) {
-        console.error('Error Response Data:', error.response.data);
-        console.error('Error Response Status:', error.response.status);
-        console.error('Error Response Headers:', error.response.headers);
-      } else if (error.request) {
-        console.error('Error Request:', error.request);
-      } else {
-        console.error('Error Message:', error.message);
-      }
-
-      // Handle specific error statuses
+      setOrders([]);
       if (error.response && error.response.status === 401) {
         handleLogout();
         navigate('/login');
       }
-      // ไม่ต้อง alert แบบรวมๆ ว่า server error แล้ว เพราะเราจัดการ response.data.message แล้ว
-      // และ setAds([]) ใน catch block ป้องกัน ads is not iterable
     }
   }, [handleLogout, navigate]);
 
-  // Effect for debounced search. Runs when searchQuery changes after a delay.
   useEffect(() => {
     const handler = setTimeout(() => {
-      setCurrentSearchTerm(searchQuery); // อัปเดต currentSearchTerm หลังจาก delay
-    }, 300); // 300ms debounce time
+      setCurrentSearchTerm(searchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [searchQuery]); // fetchAds จะถูกเรียกเองเมื่อ currentSearchTerm เปลี่ยน
-
-  // Effect to trigger fetchAds when currentSearchTerm changes
   useEffect(() => {
-    fetchAds(currentSearchTerm);
-  }, [currentSearchTerm, fetchAds]);
+    fetchOrders(currentSearchTerm);
+  }, [currentSearchTerm, fetchOrders]);
 
+  // เปิด dialog แก้ไข order
+  const handleEdit = (order) => {
+    setCurrentOrder({
+      id: order.id,
+      title: order.title || '',
+      content: order.content || '',
+      link: order.link || '',
+      status: order.status ? order.status.toLowerCase() : 'pending',
+    });
+    setEditStatus('');
+    setAdminNotes('');
+    setShowAdminNotes(false);
+    setOpenDialog(true);
+  };
+
+  // ปิด dialog แก้ไข
   const handleCloseDialog = () => {
     setOpenDialog(false);
-    setCurrentAd({
-      id: null,
-      title: '',
-      content: '',
-      link: '',
-      status: 'pending',
-      expiration_date: '',
-      image: '',
-    });
-    setImageFile(null);
-    fetchAds(currentSearchTerm); // Fetch ads ใหม่หลังจากปิด dialog (เพิ่ม/แก้ไขเสร็จ)
+    setCurrentOrder({ id: null, title: '', content: '', link: '', status: 'pending' });
   };
 
-  const handleClearImage = () => {
-    setImageFile(null);
-    setCurrentAd(prevAd => ({ ...prevAd, image: '' }));
-  };
-
+  // handle status change
   const handleStatusChange = (e) => {
-    setEditStatus(e.target.value);
+    const value = e.target.value;
+    setEditStatus(value);
+    if (value === 'rejected') {
+      setShowAdminNotes(true);
+    } else {
+      setShowAdminNotes(false);
+      setAdminNotes('');
+    }
   };
 
+  // บันทึกการแก้ไข order
   const handleSave = async () => {
-    if (editStatus === 'rejected' && (!adminNotes || adminNotes.trim() === '')) {
+    if (showAdminNotes && (!adminNotes || adminNotes.trim() === '')) {
       setAdminNotesError('กรุณากรอกเหตุผลที่ Reject');
       return;
     }
     setAdminNotesError('');
     const token = localStorage.getItem('token');
-    const formData = new FormData();
-    formData.append('title', currentAd.title || '');
-    formData.append('content', currentAd.content || '');
-    formData.append('link', currentAd.link || '');
-    formData.append('status', editStatus || currentAd.status || 'active');
-    formData.append('expiration_date', currentAd.expiration_date || '');
-    if (imageFile) {
-      formData.append('image', imageFile);
-    } else if (currentAd.image === '') {
-      formData.append('image_action', 'clear');
-    }
-    if (editStatus === 'rejected') {
-      formData.append('admin_notes', adminNotes);
-    }
     try {
-      if (currentAd.id) {
-        await axios.put(`${process.env.REACT_APP_BASE_URL}/admin/ads/${currentAd.id}`, formData, {
+      await axios.put(
+        `${process.env.REACT_APP_BASE_URL}/admin/orders/${currentOrder.id}`,
+        {
+          title: currentOrder.title,
+          content: currentOrder.content,
+          link: currentOrder.link,
+          status: editStatus, // ใช้ค่าที่ admin เลือก
+          admin_notes: showAdminNotes ? adminNotes : undefined,
+        },
+        {
           headers: {
             Authorization: `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data',
           },
-        });
-      } else {
-        await axios.post(`${process.env.REACT_APP_BASE_URL}/ads`, formData, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data',
-          },
-        });
-      }
+        }
+      );
       setOpenDialog(false);
-      fetchAds(currentSearchTerm);
+      fetchOrders(currentSearchTerm);
     } catch (error) {
-      if (error.response) {
-        alert(`Error: ${error.response.data.message || 'An error occurred while saving.'}`);
-      } else if (error.request) {
-        alert('Error: No response from server. Please check your network or server status.');
-      } else {
-        alert(`Error: ${error.message}`);
-      }
+      alert('เกิดข้อผิดพลาดในการแก้ไขข้อมูล');
     }
   };
 
-  // Define custom sort order for ad statuses
-  const statusOrder = {
-    paid: 1,
-    approved: 2,
-    rejected: 3,
-    pending: 4,
+  // เปิด dialog ยืนยันลบ
+  const handleDeleteClick = (orderId) => {
+    setOrderToDelete(orderId);
+    setOpenConfirmDelete(true);
   };
 
-  // Memoized sorted ads list for performance optimization
-  // *** แก้ไขตรงนี้: ตรวจสอบ ads ก่อนใช้ .map() ***
-  const sortedAds = useMemo(() => {
-    if (!Array.isArray(ads) || ads.length === 0) return []; // ตรวจสอบว่าเป็น array และไม่ว่าง
+  // ปิด dialog ยืนยันลบ
+  const handleCancelDelete = () => {
+    setOpenConfirmDelete(false);
+    setOrderToDelete(null);
+  };
 
-    // กรองเฉพาะ status 'active' หรือ 'expired'
-    const filtered = ads.filter(ad => {
-      const status = ad.status ? String(ad.status).toLowerCase() : '';
-      return status === 'active' || status === 'expired';
-    });
-
-    // กำหนดลำดับการเรียง: active ก่อน expired
-    const statusOrder = {
-      active: 1,
-      expired: 2,
-    };
-
-    return [...filtered].sort((a, b) => {
-      const statusA = a.status ? String(a.status).toLowerCase() : '';
-      const statusB = b.status ? String(b.status).toLowerCase() : '';
-      const orderA = statusOrder[statusA] || 99;
-      const orderB = statusOrder[statusB] || 99;
-      if (orderA !== orderB) {
-        return orderA - orderB;
-      }
-      // ถ้า status เหมือนกัน ให้เรียงตาม created_at
-      const dateA = new Date(a.created_at);
-      const dateB = new Date(b.created_at);
-      return dateA.getTime() - dateB.getTime();
-    });
-  }, [ads]);
+  // ลบ order
+  const handleConfirmDelete = async () => {
+    const token = localStorage.getItem('token');
+    try {
+      await axios.delete(`${process.env.REACT_APP_BASE_URL}/admin/orders/${orderToDelete}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setOpenConfirmDelete(false);
+      setOrderToDelete(null);
+      fetchOrders(currentSearchTerm);
+    } catch (error) {
+      alert('เกิดข้อผิดพลาดในการลบข้อมูล');
+    }
+  };
 
   if (!isAdmin()) {
     return (
@@ -751,6 +647,22 @@ const ManageAds = () => {
     );
   }
 
+  // กำหนด options ตาม status เดิมของ order (currentOrder.status)
+  let statusOptions = [];
+  if (currentOrder.status === 'pending') {
+    statusOptions = [
+      { value: 'approved', label: 'Approved' },
+      { value: 'rejected', label: 'Rejected' }
+    ];
+  } else if (currentOrder.status === 'paid') {
+    statusOptions = [
+      { value: 'active', label: 'Active' },
+      { value: 'rejected', label: 'Rejected' }
+    ];
+  }
+  // ถ้า editStatus ยังไม่ถูกเลือก ให้ default เป็นค่าว่าง ('')
+  const selectValue = editStatus || '';
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -759,7 +671,6 @@ const ManageAds = () => {
           <Bubble key={i} index={i} />
         ))}
       </AnimatedBackground>
-
       <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'transparent' }}>
         <AppBar position="fixed">
           <Toolbar>
@@ -772,7 +683,7 @@ const ManageAds = () => {
               <MenuIcon />
             </IconButton>
             <Typography variant="h6" component="div" sx={{ flexGrow: 1}}>
-              Manage Ads
+              Manage Orders
             </Typography>
             <Button
               color="inherit"
@@ -783,7 +694,6 @@ const ManageAds = () => {
             </Button>
           </Toolbar>
         </AppBar>
-
         <Drawer anchor="left" open={isDrawerOpen} onClose={handleDrawerClose}>
           <Box
             sx={{
@@ -815,7 +725,6 @@ const ManageAds = () => {
             </List>
           </Box>
         </Drawer>
-
         <Box
           component="main"
           sx={{
@@ -846,85 +755,77 @@ const ManageAds = () => {
                     animationDelay: '0.2s',
                 }}
             >
-                Manage Advertisements
+                Manage Orders
             </Typography>
-
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
                 <TextField
                     variant="outlined"
                     size="small"
-                    placeholder="Search ads (ID, title, content, status...)"
+                    placeholder="Search orders (ID, title, content, status...)"
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)} // อัปเดต searchQuery ที่ debounce
+                    onChange={(e) => setSearchQuery(e.target.value)}
                     InputProps={{
-                        startAdornment: <SearchIcon sx={{ mr: 1, color: 'action.active' }} />,
+                        startAdornment: <SearchIcon sx={{ mr: 1, color: 'action.active' }} />, 
                     }}
                     sx={{ width: { xs: '100%', sm: 'auto' }, mb: { xs: 2, sm: 0 }, flexGrow: 1, mr: { sm: 2 } }}
                 />
-                <Button variant="contained" color="primary" onClick={handleAddClick}>
-                    Add New Ad
-                </Button>
             </Box>
-
             <TableContainer component={AnimatedPaper} sx={{ animation: `${fadeIn} 0.8s ease-out forwards`, animationDelay: '0.3s' }}>
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>ID</TableCell>
-                    <TableCell>Image</TableCell>
-                    <TableCell>Title</TableCell>
-                    <TableCell>Content</TableCell>
-                    <TableCell>Link</TableCell>
+                    <TableCell>Order ID</TableCell>
+                    <TableCell>User ID</TableCell>
+                    <TableCell>Ad Title</TableCell>
+                    <TableCell>Ad Content</TableCell>
+                    <TableCell>Ad Link</TableCell>
+                    <TableCell>Ad Image</TableCell>
+                    <TableCell>Status</TableCell>
                     <TableCell>Created At</TableCell>
                     <TableCell>Updated At</TableCell>
-                    <TableCell>Expiration Date</TableCell>
-                    <TableCell>Status</TableCell>
                     <TableCell>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {sortedAds.length === 0 ? (
+                  {orders.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={10} align="center">
-                        No advertisements found.
+                        No orders found.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    sortedAds.map((ad) => (
-                      <TableRow key={ad.id}>
-                        <TableCell>{ad.id}</TableCell>
+                    orders.map((order) => (
+                      <TableRow key={order.id}>
+                        <TableCell>{order.id}</TableCell>
+                        <TableCell>{order.user_id}</TableCell>
+                        <TableCell>{order.title || '-'}</TableCell>
+                        <TableCell>{order.content || '-'}</TableCell>
                         <TableCell>
-                          {ad.image ? (
-                            // *** ใช้ REACT_APP_BASE_URL นำหน้า image path ***
+                          {order.link ? (
+                            <a href={order.link} target="_blank" rel="noopener noreferrer">{order.link}</a>
+                          ) : (
+                            'N/A'
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {order.image ? (
                             <img
-                              src={`${process.env.REACT_APP_BASE_URL}${ad.image}`}
-                              alt={ad.title}
-                              style={{ width: '100px', height: 'auto', borderRadius: '5px' }}
+                              src={`${process.env.REACT_APP_BASE_URL}${order.image}`}
+                              alt={order.title}
+                              style={{ width: '80px', height: 'auto', borderRadius: '5px' }}
                             />
                           ) : (
                             <Typography variant="body2" color="text.secondary">No Image</Typography>
                           )}
                         </TableCell>
-                        <TableCell>{ad.title}</TableCell>
-                        <TableCell>{ad.content}</TableCell>
+                        <TableCell>{order.status ? String(order.status).toLowerCase() : 'N/A'}</TableCell>
+                        <TableCell>{new Date(order.created_at).toLocaleString('en-GB')}</TableCell>
+                        <TableCell>{new Date(order.updated_at).toLocaleString('en-GB')}</TableCell>
                         <TableCell>
-                          {ad.link ? (
-                            <a href={ad.link} target="_blank" rel="noopener noreferrer">{ad.link}</a>
-                          ) : (
-                            'N/A'
-                          )}
-                        </TableCell>
-                        <TableCell>{new Date(ad.created_at).toLocaleString('en-GB')}</TableCell>
-                        <TableCell>{new Date(ad.updated_at).toLocaleString('en-GB')}</TableCell>
-                        <TableCell>
-                          {ad.expiration_date ? new Date(ad.expiration_date).toLocaleString('en-GB') : 'N/A'}
-                        </TableCell>
-                        <TableCell>{ad.status ? String(ad.status).toLowerCase() : 'N/A'}</TableCell>
-                        <TableCell>
-                          <IconButton onClick={() => handleEdit(ad)} color="edit" sx={{ mr: 1 }}>
+                          <IconButton onClick={() => handleEdit(order)} color="edit" sx={{ mr: 1 }}>
                             <EditIcon />
                           </IconButton>
-                          <IconButton onClick={() => handleDeleteClick(ad.id)} color="delete">
+                          <IconButton onClick={() => handleDeleteClick(order.id)} color="delete">
                             <DeleteIcon />
                           </IconButton>
                         </TableCell>
@@ -935,8 +836,9 @@ const ManageAds = () => {
               </Table>
             </TableContainer>
 
+            {/* Dialog สำหรับแก้ไข order */}
             <Dialog open={openDialog} onClose={handleCloseDialog} PaperComponent={AnimatedPaper} PaperProps={{ sx: { animationDelay: '0s', '&:hover': { transform: 'none', boxShadow: '0 6px 15px rgba(0,0,0,0.05)' } } }}>
-              <DialogTitle>{currentAd.id ? 'Edit Advertisement' : 'Add New Advertisement'}</DialogTitle>
+              <DialogTitle>แก้ไขออเดอร์</DialogTitle>
               <DialogContent>
                 <TextField
                   autoFocus
@@ -945,8 +847,8 @@ const ManageAds = () => {
                   type="text"
                   fullWidth
                   variant="outlined"
-                  value={currentAd.title || ''}
-                  onChange={(e) => setCurrentAd({ ...currentAd, title: e.target.value })}
+                  value={currentOrder.title || ''}
+                  onChange={(e) => setCurrentOrder({ ...currentOrder, title: e.target.value })}
                   sx={{ mb: 2 }}
                 />
                 <TextField
@@ -955,8 +857,8 @@ const ManageAds = () => {
                   type="text"
                   fullWidth
                   variant="outlined"
-                  value={currentAd.content || ''}
-                  onChange={(e) => setCurrentAd({ ...currentAd, content: e.target.value })}
+                  value={currentOrder.content || ''}
+                  onChange={(e) => setCurrentOrder({ ...currentOrder, content: e.target.value })}
                   sx={{ mb: 2 }}
                 />
                 <TextField
@@ -965,69 +867,23 @@ const ManageAds = () => {
                   type="text"
                   fullWidth
                   variant="outlined"
-                  value={currentAd.link || ''}
-                  onChange={(e) => setCurrentAd({ ...currentAd, link: e.target.value })}
-                  sx={{ mb: 2 }}
-                />
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <input
-                      accept="image/*"
-                      style={{ display: 'none' }}
-                      id="raised-button-file"
-                      type="file"
-                      onChange={(e) => setImageFile(e.target.files[0])}
-                  />
-                  <label htmlFor="raised-button-file">
-                      <Button variant="outlined" component="span" startIcon={<AddCircleIcon />}>
-                          Upload Image
-                      </Button>
-                  </label>
-                  {(imageFile || (currentAd.image && currentAd.image !== `${process.env.REACT_APP_BASE_URL}null` && currentAd.image !== `${process.env.REACT_APP_BASE_URL}undefined`)) && (
-                    <Button
-                      variant="outlined"
-                      color="error"
-                      onClick={handleClearImage}
-                      startIcon={<CancelIcon />}
-                      sx={{ ml: 2 }}
-                    >
-                      Clear Image
-                    </Button>
-                  )}
-                </Box>
-
-                {imageFile && <Typography variant="body2" sx={{ ml: 1, mb: 1 }}>Selected: {imageFile.name}</Typography>}
-
-                {(imageFile || (currentAd.image && currentAd.image !== `${process.env.REACT_APP_BASE_URL}null` && currentAd.image !== `${process.env.REACT_APP_BASE_URL}undefined`)) && (
-                    <img
-                        src={imageFile ? URL.createObjectURL(imageFile) : `${process.env.REACT_APP_BASE_URL}${currentAd.image}`}
-                        alt="Ad preview"
-                        style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'contain', marginBottom: '16px' }}
-                    />
-                )}
-
-                <TextField
-                  margin="dense"
-                  label="Expiration Date"
-                  type="date"
-                  fullWidth
-                  variant="outlined"
-                  InputLabelProps={{ shrink: true }}
-                  value={currentAd.expiration_date || ''}
-                  onChange={(e) => setCurrentAd({ ...currentAd, expiration_date: e.target.value })}
+                  value={currentOrder.link || ''}
+                  onChange={(e) => setCurrentOrder({ ...currentOrder, link: e.target.value })}
                   sx={{ mb: 2 }}
                 />
                 <FormControl fullWidth variant="outlined" sx={{ mb: 2 }}>
                   <InputLabel>Status</InputLabel>
                   <Select
-                    value={editStatus}
+                    value={selectValue}
                     onChange={handleStatusChange}
                     label="Status"
                   >
-                    <MenuItem value={currentAd.status}>{currentAd.status.charAt(0).toUpperCase() + currentAd.status.slice(1)}</MenuItem>
-                    <MenuItem value="rejected">Rejected</MenuItem>
+                    {statusOptions.map(opt => (
+                      <MenuItem value={opt.value} key={opt.value}>{opt.label}</MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
-                {editStatus === 'rejected' && (
+                {showAdminNotes && (
                   <TextField
                     margin="dense"
                     label="เหตุผลที่ Reject (บันทึกถึงผู้ใช้)"
@@ -1045,28 +901,30 @@ const ManageAds = () => {
               </DialogContent>
               <DialogActions>
                 <Button onClick={handleCloseDialog} color="secondary">
-                  Cancel
+                  ยกเลิก
                 </Button>
                 <Button onClick={handleSave} color="primary">
-                  {currentAd.id ? 'Save Changes' : 'Add Advertisement'}
+                  บันทึก
                 </Button>
               </DialogActions>
             </Dialog>
 
+            {/* Dialog ยืนยันการลบ */}
             <Dialog open={openConfirmDelete} onClose={handleCancelDelete}>
-              <DialogTitle>Confirm Delete</DialogTitle>
+              <DialogTitle>ยืนยันการลบ</DialogTitle>
               <DialogContent>
-                <Typography>Are you sure you want to delete this advertisement?</Typography>
+                <Typography>คุณแน่ใจหรือไม่ว่าต้องการลบออเดอร์นี้? การลบนี้จะลบโฆษณาที่เกี่ยวข้องด้วย</Typography>
               </DialogContent>
               <DialogActions>
                 <Button onClick={handleCancelDelete} color="primary">
-                  Cancel
+                  ยกเลิก
                 </Button>
                 <Button onClick={handleConfirmDelete} color="error">
-                  Delete
+                  ลบ
                 </Button>
               </DialogActions>
             </Dialog>
+
           </Box>
         </Box>
       </Box>
@@ -1074,4 +932,4 @@ const ManageAds = () => {
   );
 };
 
-export default ManageAds;
+export default ManageOrders;

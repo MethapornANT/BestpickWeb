@@ -35,6 +35,7 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import CategoryIcon from '@mui/icons-material/Category'; // Ensure CategoryIcon is imported for this page's menu item
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp'; // For Logout button
 import { useAuth } from '../AuthContext';
 
@@ -360,6 +361,7 @@ const ManageCategories = () => {
     const menuItems = [
         { text: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
         { text: 'Manage Advertisements', path: '/manageadd', icon: <AddCircleIcon /> },
+        { text: 'Manage Order', path: '/manageorder', icon: <ShoppingCartIcon /> },
         { text: 'Manage User', path: '/manageuser', icon: <PeopleIcon /> },
         { text: 'Manage Post', path: '/managepost', icon: <AssignmentIcon /> },
         { text: 'Report posts', path: '/manage-reported-posts', icon: <ReportProblemIcon /> },
