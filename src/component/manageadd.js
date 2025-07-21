@@ -456,6 +456,7 @@ const ManageAds = () => {
   const [editStatus, setEditStatus] = useState('');
   const [adminNotes, setAdminNotes] = useState('');
   const [adminNotesError, setAdminNotesError] = useState('');
+  const [showAt, setShowAt] = useState('');
 
   // Menu items for the drawer navigation
   const menuItems = [
@@ -489,6 +490,8 @@ const ManageAds = () => {
       expiration_date: '',
       image: '',
     });
+    setEditStatus('pending');
+    setShowAt('');
     setOpenDialog(true);
     setImageFile(null);
   };
@@ -500,6 +503,7 @@ const ManageAds = () => {
       status: ad.status ? ad.status.toLowerCase() : 'active',
     });
     setEditStatus(ad.status ? ad.status.toLowerCase() : 'active');
+    setShowAt(ad.show_at ? new Date(ad.show_at).toISOString().slice(0, 10) : '');
     setAdminNotes('');
     setAdminNotesError('');
     setOpenDialog(true);
@@ -642,6 +646,7 @@ const ManageAds = () => {
     formData.append('link', currentAd.link || '');
     formData.append('status', editStatus || currentAd.status || 'active');
     formData.append('expiration_date', currentAd.expiration_date || '');
+    if (showAt) formData.append('show_at', showAt);
     if (imageFile) {
       formData.append('image', imageFile);
     } else if (currentAd.image === '') {
@@ -875,6 +880,7 @@ const ManageAds = () => {
                     <TableCell>Title</TableCell>
                     <TableCell>Content</TableCell>
                     <TableCell>Link</TableCell>
+                    <TableCell>Show At</TableCell>
                     <TableCell>Created At</TableCell>
                     <TableCell>Updated At</TableCell>
                     <TableCell>Expiration Date</TableCell>
@@ -885,7 +891,7 @@ const ManageAds = () => {
                 <TableBody>
                   {sortedAds.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} align="center">
+                      <TableCell colSpan={11} align="center">
                         No advertisements found.
                       </TableCell>
                     </TableRow>
@@ -913,6 +919,9 @@ const ManageAds = () => {
                           ) : (
                             'N/A'
                           )}
+                        </TableCell>
+                        <TableCell>
+                          {ad.show_at ? new Date(ad.show_at).toLocaleDateString('en-GB') : 'N/A'}
                         </TableCell>
                         <TableCell>{new Date(ad.created_at).toLocaleString('en-GB')}</TableCell>
                         <TableCell>{new Date(ad.updated_at).toLocaleString('en-GB')}</TableCell>
@@ -1015,6 +1024,17 @@ const ManageAds = () => {
                   value={currentAd.expiration_date || ''}
                   onChange={(e) => setCurrentAd({ ...currentAd, expiration_date: e.target.value })}
                   sx={{ mb: 2 }}
+                />
+                <TextField
+                  margin="dense"
+                  label="Show At"
+                  type="date"
+                  fullWidth
+                  variant="outlined"
+                  value={showAt}
+                  onChange={e => setShowAt(e.target.value)}
+                  sx={{ mb: 2 }}
+                  InputLabelProps={{ shrink: true }}
                 />
                 <FormControl fullWidth variant="outlined" sx={{ mb: 2 }}>
                   <InputLabel>Status</InputLabel>
