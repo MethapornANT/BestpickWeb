@@ -475,6 +475,22 @@ const ManageOrders = () => {
   const handleMenuClick = () => setIsDrawerOpen(true);
   const handleDrawerClose = () => setIsDrawerOpen(false);
 
+  // ฟังก์ชันจัดเรียงออเดอร์ตามเงื่อนไขใหม่
+  const sortOrders = (orders) => {
+    // แบ่งกลุ่มออเดอร์
+    const nonRejectedOrders = orders.filter(order => String(order.status).toLowerCase() !== 'rejected');
+    const rejectedOrders = orders.filter(order => String(order.status).toLowerCase() === 'rejected');
+  
+    // เรียงลำดับกลุ่ม non-rejected: เก่าไปใหม่
+    nonRejectedOrders.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
+  
+    // เรียงลำดับกลุ่ม rejected: ใหม่ไปเก่า
+    rejectedOrders.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+  
+    // รวมออเดอร์เข้าด้วยกัน
+    return [...nonRejectedOrders, ...rejectedOrders];
+  };
+
   // ดึงข้อมูล orders จาก API
   const fetchOrders = useCallback(async (query = '') => {
     const token = localStorage.getItem('token');
@@ -486,7 +502,7 @@ const ManageOrders = () => {
       });
       let filtered = response.data.filter(order => {
         const status = order.status ? String(order.status).toLowerCase() : '';
-        return status === 'pending' || status === 'paid';
+        return status === 'pending' || status === 'paid' || status === 'rejected';
       });
       // filter ด้วย searchQuery ถ้ามี
       if (query) {
@@ -499,9 +515,11 @@ const ManageOrders = () => {
           (order.user_id && String(order.user_id).includes(q))
         );
       }
-      // เรียงตาม updated_at (ใหม่ -> เก่า)
-      filtered.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-      setOrders(filtered);
+      
+      // เรียงลำดับด้วยฟังก์ชัน sortOrders
+      const sortedOrders = sortOrders(filtered);
+      setOrders(sortedOrders);
+
     } catch (error) {
       setOrders([]);
       if (error.response && error.response.status === 401) {
@@ -780,6 +798,8 @@ const ManageOrders = () => {
                     <TableCell>Ad Content</TableCell>
                     <TableCell>Ad Link</TableCell>
                     <TableCell>Ad Image</TableCell>
+                    {/* New column for Slip Image */}
+                    <TableCell>Slip Image</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell>Created At</TableCell>
                     <TableCell>Updated At</TableCell>
@@ -789,7 +809,8 @@ const ManageOrders = () => {
                 <TableBody>
                   {orders.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} align="center">
+                      {/* Updated colSpan to 11 to account for the new column */}
+                      <TableCell colSpan={11} align="center">
                         No orders found.
                       </TableCell>
                     </TableRow>
@@ -809,13 +830,30 @@ const ManageOrders = () => {
                         </TableCell>
                         <TableCell>
                           {order.image ? (
-                            <img
-                              src={`${process.env.REACT_APP_BASE_URL}${order.image}`}
-                              alt={order.title}
-                              style={{ width: '80px', height: 'auto', borderRadius: '5px' }}
-                            />
+                            <a href={`${process.env.REACT_APP_BASE_URL}${order.image}`} target="_blank" rel="noopener noreferrer">
+                              <img
+                                src={`${process.env.REACT_APP_BASE_URL}${order.image}`}
+                                alt={order.title}
+                                style={{ width: '80px', height: 'auto', borderRadius: '5px' }}
+                              />
+                            </a>
                           ) : (
                             <Typography variant="body2" color="text.secondary">No Image</Typography>
+                          )}
+                        </TableCell>
+                        {/* Cell to display the slip_image */}
+                        <TableCell>
+                          {order.slip_image ? (
+                            // แก้ไขตรงนี้
+                            <a href={`${process.env.REACT_APP_BASE_URL}/${order.slip_image.replace(/\\/g, '/')}`} target="_blank" rel="noopener noreferrer">
+                              <img
+                                src={`${process.env.REACT_APP_BASE_URL}/${order.slip_image.replace(/\\/g, '/')}`}
+                                alt="Slip"
+                                style={{ width: '80px', height: 'auto', borderRadius: '5px' }}
+                              />
+                            </a>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">No Slip</Typography>
                           )}
                         </TableCell>
                         <TableCell>{order.status ? String(order.status).toLowerCase() : 'N/A'}</TableCell>
