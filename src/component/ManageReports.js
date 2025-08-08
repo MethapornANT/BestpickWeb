@@ -1,733 +1,455 @@
-import React, { useState, useEffect, useMemo } from 'react';
+// src/pages/ManageReportedPosts.jsx (no overflow, balanced widths)
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+
 import {
-    AppBar, Toolbar, Typography, Button, Box, Paper,
-    Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    IconButton, Dialog, DialogActions, DialogContent, DialogTitle,
-    FormControl, InputLabel, Select, MenuItem, CssBaseline,
-    Drawer, List, ListItem, ListItemText, Avatar, TextField
+  AppBar, Toolbar, Typography, Button, Box, Paper,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  IconButton, Dialog, DialogActions, DialogContent, DialogTitle,
+  FormControl, InputLabel, Select, MenuItem, CssBaseline,
+  Drawer, List, ListItem, ListItemText, ListItemIcon, Divider,
+  Avatar, TextField, Chip, Tooltip, useMediaQuery
 } from '@mui/material';
+
+import { ThemeProvider, createTheme, styled, alpha } from '@mui/material/styles';
+import { keyframes } from '@emotion/react';
+
 import MenuIcon from '@mui/icons-material/Menu';
 import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import CategoryIcon from '@mui/icons-material/Category';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
-import SearchIcon from '@mui/icons-material/Search';
+import CategoryIcon from '@mui/icons-material/Category';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
+import SearchIcon from '@mui/icons-material/Search';
+
 import { useAuth } from '../AuthContext';
 
-import { createTheme, ThemeProvider, styled } from '@mui/material/styles';
-import { keyframes } from '@emotion/react';
-
-// --- Keyframes for Animations (Consistent with other pages) ---
-const backgroundGradientShift = keyframes`
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-`;
-
+/* ---------------- Animations ---------------- */
 const fadeIn = keyframes`
-    from { opacity: 0; transform: translateY(15px); }
-    to { opacity: 1; transform: translateY(0); }
+  from { opacity:0; transform: translateY(8px); }
+  to { opacity:1; transform: translateY(0); }
+`;
+const auroraShift = keyframes`
+  0% { transform: translate3d(-10%,-10%,0) scale(1); }
+  50% { transform: translate3d(10%,10%,0) scale(1.06); }
+  100% { transform: translate3d(-10%,-10%,0) scale(1); }
+`;
+const float = keyframes`
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+  100% { transform: translateY(0); }
 `;
 
-const slideInUp = keyframes`
-    from { opacity: 0; transform: translateY(50px); }
-    to { opacity: 1; transform: translateY(0); }
-`;
-
-const bubbleMovement = keyframes`
-    0% { transform: translate(0, 0); opacity: 0.1; }
-    25% { transform: translate(20vw, 15vh); opacity: 0.15; }
-    50% { transform: translate(-10vw, 30vh); opacity: 0.1; }
-    75% { transform: translate(15vw, 40vh); opacity: 0.12; }
-    100% { transform: translate(0, 0); opacity: 0.1; }
-`;
-
-// --- Custom Theme Definition (Consistent with Dashboard, ManageUsers, ManagePosts) ---
+/* ---------------- Theme (same family as Ads/Orders/Posts) ---------------- */
 const theme = createTheme({
-    palette: {
-        primary: {
-            main: '#1A1A1A', // Dark grey for AppBar, Sidebar background
-            light: '#333333',
-            dark: '#000000',
-            contrastText: '#FFFFFF',
-        },
-        chartBlue: {
-            main: '#9AC7E7', // Fresher, slightly more vibrant blue
-            light: '#BDE3FF',
-            dark: '#6D9BCD',
-            contrastText: '#1A1A1A',
-        },
-        chartPink: {
-            main: '#E79ACB', // Fresher, slightly more vibrant pink
-            light: '#FFBEE3',
-            dark: '#CD6D9B',
-            contrastText: '#1A1A1A',
-        },
-        pastelBlue: {
-            main: '#C0E0F0', // Light pastel blue
-        },
-        pastelPink: {
-            main: '#F0C0E0', // Light pastel pink
-        },
-        background: {
-            default: '#E0E0E0', // Overall grey background
-            paper: '#FFFFFF',   // Pure White for cards/containers
-        },
-        text: {
-            primary: '#212121',
-            secondary: '#757575',
-            disabled: '#BDBDBD',
-        },
-        divider: '#E0E0E0',
+  palette: {
+    neutral: {
+      900: '#0F1115', 800: '#13161D', 700: '#1B1F27', 600: '#2A2F3A',
+      500: '#3A4150', 400: '#6B7280', 300: '#9CA3AF', 200: '#D1D5DB',
+      100: '#E5E7EB', 50: '#F5F7FB'
     },
-    typography: {
-        fontFamily: ['"Inter"', 'sans-serif'].join(','),
-        h3: {
-            fontWeight: 700,
-            color: '#212121',
-            fontSize: '3.5rem',
-            '@media (max-width:960px)': {
-                fontSize: '2.8rem',
-            },
-            '@media (max-width:600px)': {
-                fontSize: '2.2rem',
-            },
-        },
-        h4: {
-            fontWeight: 600,
-            color: '#212121',
-            fontSize: '2.2rem',
-            '@media (max-width:960px)': {
-                fontSize: '1.8rem',
-            },
-            '@media (max-width:600px)': {
-                fontSize: '1.4rem',
-            },
-        },
-        h5: {
-            fontWeight: 600,
-            color: '#212121',
-            fontSize: '1.5rem',
-            '@media (max-width:600px)': {
-                fontSize: '1.2rem',
-            },
-        },
-        h6: {
-            fontWeight: 500,
-            color: '#FFFFFF',
-            fontSize: '1.05rem',
-        },
-        body1: {
-            fontSize: '0.9rem',
-            lineHeight: 1.5,
-            color: '#424242',
-        },
-        button: {
-            textTransform: 'none',
-            fontWeight: 500,
-        },
+    pastel: {
+      blue: '#DDEEFF',
+      pink: '#FFE6F2',
+      mint: '#E9FFF5',
+      lemon: '#FFF9D9',
+      lilac: '#F1E8FF'
     },
-    components: {
-        MuiAppBar: {
-            styleOverrides: {
-                root: {
-                    backgroundColor: '#1A1A1A',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
-                    minHeight: '48px',
-                    '@media (min-width:600px)': {
-                        minHeight: '56px',
-                    },
-                    borderRadius: 0,
-                },
-            },
-        },
-        MuiToolbar: {
-            styleOverrides: {
-                root: {
-                    padding: '0 18px',
-                    '@media (min-width:600px)': {
-                        paddingLeft: '22px',
-                        paddingRight: '22px',
-                    },
-                },
-            },
-        },
-        MuiDrawer: {
-            styleOverrides: {
-                paper: ({ theme }) => ({
-                    width: 250,
-                    backgroundColor: theme.palette.primary.main,
-                    color: theme.palette.primary.contrastText,
-                    height: '100%',
-                    boxShadow: '4px 0 8px rgba(0,0,0,0.15)',
-                    borderRight: 'none',
-                    borderRadius: 0,
-                }),
-            },
-        },
-        MuiListItem: {
-            styleOverrides: {
-                root: ({ theme }) => ({
-                    color: theme.palette.primary.contrastText,
-                    padding: '10px 15px',
-                    margin: '3px 0px',
-                    borderRadius: '4px',
-                    transition: 'background-color 0.2s ease, transform 0.2s ease, color 0.2s ease',
-                    '&:hover': {
-                        backgroundColor: 'rgba(255,255,255,0.08)',
-                        color: '#FFFFFF',
-                        transform: 'translateX(3px)',
-                        boxShadow: 'none',
-                    },
-                    '&.Mui-selected': {
-                        backgroundColor: 'rgba(255,255,255,0.15)',
-                        color: '#FFFFFF',
-                        fontWeight: 600,
-                        '& .MuiSvgIcon-root': {
-                            color: '#FFFFFF',
-                        }
-                    },
-                    '&.Mui-selected:hover': {
-                        backgroundColor: 'rgba(255,255,255,0.25)',
-                    }
-                }),
-            },
-        },
-        MuiListItemIcon: {
-            styleOverrides: {
-                root: ({ theme }) => ({
-                    minWidth: '35px',
-                    color: theme.palette.primary.contrastText,
-                }),
-            },
-        },
-        MuiPaper: {
-            styleOverrides: {
-                root: {
-                    borderRadius: '10px',
-                    boxShadow: '0 6px 15px rgba(0,0,0,0.05)',
-                    padding: '22px',
-                    '@media (max-width:600px)': {
-                        padding: '16px',
-                        borderRadius: '8px',
-                    },
-                },
-            },
-        },
-        MuiButton: {
-            styleOverrides: {
-                root: {
-                    borderRadius: '5px',
-                    padding: '8px 14px',
-                    fontSize: '0.85rem',
-                    fontWeight: 500,
-                    transition: 'transform 0.15s ease-out, background-color 0.15s ease-out, box-shadow 0.15s ease-out',
-                    '&:hover': {
-                        transform: 'translateY(-1px)',
-                        boxShadow: '0 4px 10px rgba(0, 191, 255, 0.1)',
-                    },
-                    '&:active': {
-                        transform: 'translateY(0px)',
-                        boxShadow: '0 1px 3px rgba(0, 191, 255, 0.05)',
-                    },
-                },
-                containedPrimary: ({ theme }) => ({
-                    backgroundColor: theme.palette.primary.main,
-                    color: theme.palette.primary.contrastText,
-                    '&:hover': {
-                        backgroundColor: theme.palette.primary.dark,
-                    },
-                }),
-                textPrimary: ({ theme }) => ({
-                    color: theme.palette.text.primary,
-                    '&:hover': {
-                        backgroundColor: 'rgba(0,0,0,0.02)',
-                        color: theme.palette.primary.main,
-                    }
-                })
-            },
-        },
-        MuiIconButton: {
-            styleOverrides: {
-                root: {
-                    color: '#FFFFFF', // Default color for AppBar icons
-                    '&:hover': {
-                        backgroundColor: 'rgba(255,255,255,0.06)',
-                    }
-                }
-            }
-        },
-        MuiTableCell: {
-            styleOverrides: {
-                root: ({ theme }) => ({
-                    borderBottom: `1px solid rgba(0, 0, 0, 0.1)`, // Changed for clearer lines
-                }),
-                head: ({ theme }) => ({
-                    backgroundColor: theme.palette.background.paper,
-                    color: theme.palette.text.primary,
-                    fontWeight: 600,
-                }),
-                body: ({ theme }) => ({
-                    color: theme.palette.text.secondary,
-                }),
-            },
-        },
+    primary: { main: '#1B1F27', contrastText: '#FFFFFF' },
+    background: { default: '#F5F7FB', paper: '#FFFFFF' },
+    text: { primary: '#1B1F27', secondary: '#5B6170' },
+    divider: 'rgba(27,31,39,0.08)'
+  },
+  typography: {
+    fontFamily: ['Inter','system-ui','Segoe UI','Roboto','sans-serif'].join(','),
+    h2: { fontWeight: 900, fontSize: 'clamp(2rem, 5vw, 4rem)', letterSpacing: '-0.02em' },
+    button: { textTransform: 'none', fontWeight: 700 }
+  },
+  components: {
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          background: 'rgba(19,22,29,0.88)',
+          backdropFilter: 'blur(10px)',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          boxShadow: '0 12px 28px rgba(15,17,21,0.18)',
+          borderRadius: 0
+        }
+      }
     },
+    MuiTableCell: {
+      styleOverrides: {
+        head: { fontWeight: 800, backgroundColor: '#fff', whiteSpace: 'nowrap' }
+      }
+    }
+  }
 });
 
-// --- Styled Components (Consistent with other pages) ---
-const AnimatedBackground = styled(Box)(({ theme }) => ({
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    width: '100vw',
-    height: '100vh',
-    overflow: 'hidden',
-    zIndex: -1,
-    background: `linear-gradient(135deg, ${theme.palette.pastelBlue.main} 0%, ${theme.palette.background.default} 25%, ${theme.palette.background.default} 75%, ${theme.palette.pastelPink.main} 100%)`,
-    backgroundSize: '400% 400%',
-    animation: `${backgroundGradientShift} 35s ease infinite`,
-    filter: 'brightness(1.02)',
+/* ---------------- Pastel Aurora Background ---------------- */
+const Backdrop = styled('div')(({ theme }) => ({
+  position: 'fixed', inset: 0, overflow: 'hidden', zIndex: 0,
+  background: `radial-gradient(1000px 500px at 15% -10%, ${alpha(theme.palette.pastel.blue,0.6)} 0%, transparent 60%),
+               radial-gradient(900px 500px at 110% 30%, ${alpha(theme.palette.pastel.lilac,0.5)} 0%, transparent 65%),
+               radial-gradient(900px 600px at 0% 100%, ${alpha(theme.palette.pastel.mint,0.45)} 0%, transparent 55%),
+               ${theme.palette.background.default}`
+}));
+const Aurora = styled('div')(({ theme }) => ({
+  position: 'absolute', left: '-20%', top: '-20%', width: '140%', height: '140%',
+  background: `conic-gradient(from 0deg,
+    ${alpha(theme.palette.pastel.blue,0.9)},
+    ${alpha(theme.palette.pastel.pink,0.9)},
+    ${alpha(theme.palette.pastel.mint,0.9)},
+    ${alpha(theme.palette.pastel.lemon,0.9)},
+    ${alpha(theme.palette.pastel.lilac,0.9)},
+    ${alpha(theme.palette.pastel.blue,0.9)})`,
+  filter: 'blur(80px)',
+  mixBlendMode: 'multiply',
+  animation: `${auroraShift} 30s ease-in-out infinite`,
+  opacity: 1
+}));
+const Particle = styled('span')(({ size = 8, x = 50, y = 50, delay = 0 }) => ({
+  position: 'absolute',
+  left: `${x}%`, top: `${y}%`,
+  width: size, height: size, borderRadius: 999,
+  background: `linear-gradient(90deg, rgba(255,255,255,0.95), rgba(255,255,255,0.4))`,
+  boxShadow: `0 0 ${size * 1.4}px rgba(27,31,39,0.08)`,
+  animation: `${float} ${6 + (size % 7)}s ease-in-out ${delay}s infinite`,
+  opacity: 0.9
 }));
 
-const Bubble = styled(Box)(({ theme, index }) => ({
-    position: 'absolute',
-    borderRadius: '50%',
-    opacity: 0.1,
-    zIndex: -1,
-    filter: 'blur(8px)',
-    animation: `${bubbleMovement} ${20 + index * 5}s linear infinite ${index * 2}s`,
-    width: `${100 + index * 50}px`,
-    height: `${100 + index * 50}px`,
-    top: `${Math.random() * 80}vh`,
-    left: `${Math.random() * 80}vw`,
-    backgroundColor: index % 2 === 0 ? theme.palette.pastelBlue.main : theme.palette.pastelPink.main,
+/* ---------------- Reusable UI ---------------- */
+const TableShell = styled(TableContainer)(({ theme }) => ({
+  animation: `${fadeIn} .5s ease-out`,
+  width: '100%',
+  maxWidth: '100%',
+  margin: 0,
+  overflowX: 'hidden', // prevent horizontal scroll; cells will ellipsize
+  boxShadow: '0 8px 24px rgba(0,0,0,0.06)'
 }));
-
-const MainContentPaper = styled(Paper)(({ theme }) => ({
-    borderRadius: '10px',
-    boxShadow: '0 6px 15px rgba(0,0,0,0.05)',
-    padding: '22px',
-    animation: `${slideInUp} 0.6s ease-out forwards`,
-    animationDelay: '0.2s',
-    transition: 'transform 0.3s ease-out, box-shadow 0.3s ease-out',
-    '&:hover': {
-        transform: 'translateY(-8px)',
-        boxShadow: '0 12px 25px rgba(0,0,0,0.15)',
-    },
-    '@media (max-width:600px)': {
-        padding: '16px',
-        borderRadius: '8px',
-    },
+const HoverRow = styled(TableRow)(({ theme }) => ({
+  transition: 'transform .18s ease, background .18s ease',
+  '&:hover': { background: alpha(theme.palette.pastel.blue, .28) }
 }));
+const PastelIconBtn = ({ color, children, ...props }) => (
+  <IconButton
+    {...props}
+    sx={{
+      width: 34, height: 34,
+      bgcolor: theme.palette.pastel[color] || theme.palette.pastel.blue,
+      '&:hover': { bgcolor: alpha(theme.palette.pastel[color] || theme.palette.pastel.blue, .85) }
+    }}
+  >
+    {children}
+  </IconButton>
+);
+const StatusChip = ({ value }) => {
+  const v = String(value || '').toLowerCase();
+  const map = {
+    pending: { bg: theme.palette.pastel.lemon, label: 'pending' },
+    normally: { bg: theme.palette.pastel.mint, label: 'normally' },
+    block: { bg: theme.palette.pastel.pink, label: 'block' }
+  };
+  const s = map[v] || { bg: theme.palette.neutral[100], label: v || 'N/A' };
+  return (
+    <Chip
+      size="small"
+      label={s.label}
+      sx={{ bgcolor: s.bg, fontWeight: 800, borderRadius: 999, height: 24, color: theme.palette.neutral[900] }}
+    />
+  );
+};
+const oneLine = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' };
 
-
+/* ---------------- Component ---------------- */
 const ManageReportedPosts = () => {
-    const { handleLogout, isAdmin } = useAuth();
-    const navigate = useNavigate();
-    const location = useLocation();
+  const { handleLogout, isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-    const [reportedPosts, setReportedPosts] = useState([]);
-    const [openDialog, setOpenDialog] = useState(false);
-    const [selectedPost, setSelectedPost] = useState(null);
-    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-    const [searchQuery, setSearchQuery] = useState(''); // สำหรับ TextField ค้นหา
-    const [currentSearchTerm, setCurrentSearchTerm] = useState(''); // สำหรับส่งไป fetchReportedPosts
+  const isMdUp = useMediaQuery(theme.breakpoints.up('md'));
+  const isLgUp = useMediaQuery(theme.breakpoints.up('lg'));
 
-    const menuItems = [
-        { text: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
-        { text: 'Manage Advertisements', path: '/manageadd', icon: <AddCircleIcon /> },
-        { text: 'Manage Order', path: '/manageorder', icon: <ShoppingCartIcon /> },
-        { text: 'Manage User', path: '/manageuser', icon: <PeopleIcon /> },
-        { text: 'Manage Post', path: '/managepost', icon: <AssignmentIcon /> },
-        { text: 'Report posts', path: '/manage-reported-posts', icon: <ReportProblemIcon /> },
-        { text: 'Manage Categories', path: '/managecategories', icon: <CategoryIcon /> },
-    ];
+  const [reportedPosts, setReportedPosts] = useState([]);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentSearchTerm, setCurrentSearchTerm] = useState('');
 
-    useEffect(() => {
-        if (!isAdmin()) {
-            navigate('/login');
-        } else {
-            fetchReportedPosts();
-        }
-    }, [isAdmin, navigate]);
+  const [openEdit, setOpenEdit] = useState(false);
+  const [selectedReport, setSelectedReport] = useState(null);
 
-    // Debounce searchQuery -> currentSearchTerm
-    useEffect(() => {
-        const handler = setTimeout(() => {
-            setCurrentSearchTerm(searchQuery);
-        }, 300);
-        return () => clearTimeout(handler);
-    }, [searchQuery]);
+  const menuItems = [
+    { text: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
+    { text: 'Manage Advertisements', path: '/manageadd', icon: <AddCircleIcon /> },
+    { text: 'Manage Order', path: '/manageorder', icon: <ShoppingCartIcon /> },
+    { text: 'Manage User', path: '/manageuser', icon: <PeopleIcon /> },
+    { text: 'Manage Post', path: '/managepost', icon: <AssignmentIcon /> },
+    { text: 'Report posts', path: '/manage-reported-posts', icon: <ReportProblemIcon /> },
+    { text: 'Manage Categories', path: '/managecategories', icon: <CategoryIcon /> },
+  ];
 
-    // เรียก fetchReportedPosts ทุกครั้งที่ currentSearchTerm เปลี่ยน
-    useEffect(() => {
-        fetchReportedPosts(currentSearchTerm);
-        // eslint-disable-next-line
-    }, [currentSearchTerm]);
+  useEffect(() => { if (!isAdmin()) navigate('/login'); }, [isAdmin, navigate]);
 
-    // ปรับ fetchReportedPosts ให้รองรับ query
-    const fetchReportedPosts = async (query = '') => {
-        const token = localStorage.getItem('token');
-        try {
-            let url;
-            if (query) {
-                url = `${process.env.REACT_APP_BASE_URL}/admin/search/reports?q=${encodeURIComponent(query)}`;
-            } else {
-                url = `${process.env.REACT_APP_BASE_URL}/admin/reported-posts`;
-            }
-            const response = await axios.get(url, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            if (Array.isArray(response.data)) {
-                setReportedPosts(response.data);
-            } else if (response.data && Array.isArray(response.data.results)) {
-                setReportedPosts(response.data.results);
-            } else {
-                setReportedPosts([]);
-            }
-        } catch (error) {
-            setReportedPosts([]);
-            if (error.response && error.response.status === 401) {
-                handleLogout();
-                navigate('/login');
-            }
-        }
-    };
-
-    const handleMenuClick = () => {
-        setIsDrawerOpen(true);
-    };
-
-    const handleDrawerClose = () => {
-        setIsDrawerOpen(false);
-    };
-
-    const handleCloseDialog = () => {
-        setOpenDialog(false);
-        setSelectedPost(null);
-    };
-
-    const handleEdit = (report) => {
-        setSelectedPost(report);
-        setOpenDialog(true);
-    };
-
-    const handleSave = async () => {
-        const token = localStorage.getItem('token');
-        try {
-            await axios.put(`${process.env.REACT_APP_BASE_URL}/admin/reports/${selectedPost.report_id}`, {
-                status: selectedPost.status // Send the new status to backend
-            }, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            // Re-fetch all reported posts to ensure UI is up-to-date with new logic
-            fetchReportedPosts();
-            setOpenDialog(false);
-        } catch (error) {
-            if (error.response) {
-                console.error('Error updating report status:', error.response.data);
-                alert(`Error updating report: ${error.response.data.error || error.message}`);
-            } else {
-                console.error('Error updating report status:', error.message);
-                alert(`Error updating report: ${error.message}`);
-            }
-            if (error.response && error.response.status === 401) {
-                handleLogout();
-                navigate('/login');
-            }
-        }
-    };
-
-    // Helper to get the first photo URL from a JavaScript Array of strings
-    const getFirstPhotoUrl = (photoUrlArray) => {
-        console.log("Processing photo_url array:", photoUrlArray); // Log the input
-        if (Array.isArray(photoUrlArray) && photoUrlArray.length > 0) {
-            const firstValidUrl = photoUrlArray.find(url => typeof url === 'string' && url.trim() !== '');
-            if (firstValidUrl) {
-                // Prepend base URL if the path is relative (starts with /uploads)
-                if (firstValidUrl.startsWith('/uploads/')) {
-                    // Ensure REACT_APP_BASE_URL does not end with / to avoid double slash
-                    const baseUrl = process.env.REACT_APP_BASE_URL.endsWith('/') ? process.env.REACT_APP_BASE_URL.slice(0, -1) : process.env.REACT_APP_BASE_URL;
-                    return `${baseUrl}${firstValidUrl}`;
-                }
-                return firstValidUrl; // Return as is if it's already an absolute URL
-            }
-        }
-        console.log("No valid photo URL found.");
-        return null; // Return null if array is empty, not an array, or no valid URLs
-    };
-
-
-    // Use useMemo to sort reportedPosts for display
-    const sortedReportedPosts = useMemo(() => {
-        if (!reportedPosts) return [];
-
-        const statusOrder = {
-            'pending': 1,
-            'normally': 2,
-            'block': 3,
-        };
-
-        return [...reportedPosts].sort((a, b) => {
-            const statusComparison = (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
-            if (statusComparison !== 0) {
-                return statusComparison;
-            }
-
-            // Secondary sort by reported_at (newest first) within the same status group
-            return new Date(b.reported_at).getTime() - new Date(a.reported_at).getTime();
-        });
-    }, [reportedPosts]);
-
-    if (!isAdmin()) {
-        return (
-            <ThemeProvider theme={theme}>
-                <CssBaseline />
-                <AnimatedBackground>
-                    {[...Array(5)].map((_, i) => (
-                        <Bubble key={i} index={i} />
-                    ))}
-                </AnimatedBackground>
-                <Box sx={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    minHeight: '100vh',
-                    backgroundColor: 'transparent',
-                    color: theme.palette.text.primary,
-                    textAlign: 'center',
-                    p: 3
-                }}>
-                    <Paper elevation={3} sx={{ p: 5, borderRadius: '20px', animation: `${fadeIn} 0.6s ease-out forwards` }}>
-                        <Typography variant="h5" gutterBottom>Access Denied</Typography>
-                        <Typography variant="body1" sx={{ mb: 3 }}>
-                            You are not authorized to view this page. Please log in with administrator credentials.
-                        </Typography>
-                        <Button
-                            variant="contained"
-                            color="primary"
-                            onClick={() => navigate('/login')}
-                        >
-                            Go to Login
-                        </Button>
-                    </Paper>
-                </Box>
-            </ThemeProvider>
-        );
+  const fetchReported = useCallback(async (q='') => {
+    const token = localStorage.getItem('token');
+    try {
+      const url = q
+        ? `${process.env.REACT_APP_BASE_URL}/admin/search/reports?q=${encodeURIComponent(q)}`
+        : `${process.env.REACT_APP_BASE_URL}/admin/reported-posts`;
+      const res = await axios.get(url, { headers:{ Authorization:`Bearer ${token}` }});
+      if (Array.isArray(res.data)) setReportedPosts(res.data);
+      else if (res.data?.results) setReportedPosts(res.data.results);
+      else setReportedPosts([]);
+    } catch (e) {
+      setReportedPosts([]);
+      if (e?.response?.status === 401) { handleLogout(); navigate('/login'); }
     }
+  }, [handleLogout, navigate]);
 
-    return (
-        <ThemeProvider theme={theme}>
-            <CssBaseline />
-            <AnimatedBackground>
-                {[...Array(5)].map((_, i) => (
-                    <Bubble key={i} index={i} />
-                ))}
-            </AnimatedBackground>
+  useEffect(() => {
+    const h = setTimeout(()=> setCurrentSearchTerm(searchQuery), 300);
+    return () => clearTimeout(h);
+  }, [searchQuery]);
 
-            <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'transparent' }}>
-                {/* AppBar (Top Navigation) */}
-                <AppBar position="fixed">
-                    <Toolbar>
-                        <IconButton edge="start" color="inherit" onClick={handleMenuClick} sx={{ mr: 2 }}>
-                            <MenuIcon />
-                        </IconButton>
-                        <Typography variant="h6" sx={{ flexGrow: 1 }}>
-                            Manage Reported Posts
-                        </Typography>
-                        <Button
-                            color="inherit"
-                            onClick={handleLogout}
-                            startIcon={<ExitToAppIcon />}
-                        >
-                            Logout
-                        </Button>
-                    </Toolbar>
-                </AppBar>
+  useEffect(() => { fetchReported(currentSearchTerm); }, [currentSearchTerm, fetchReported]);
 
-                {/* Sidebar (Drawer) */}
-                <Drawer anchor="left" open={isDrawerOpen} onClose={handleDrawerClose}>
-                    <Box
-                        sx={{
-                            width: 250,
-                            backgroundColor: theme.palette.primary.main,
-                            color: theme.palette.primary.contrastText,
-                            height: '100%'
-                        }}
-                        role="presentation"
-                        onClick={handleDrawerClose}
-                        onKeyDown={handleDrawerClose}
-                    >
-                        <Typography variant="h6" sx={{ padding: '16px', textAlign: 'center', fontWeight: 'bold' }}>
-                            Menu
-                        </Typography>
-                        <List>
-                            {menuItems.map((item) => (
-                                <ListItem
-                                    button
-                                    key={item.text}
-                                    component={Link}
-                                    to={item.path}
-                                    selected={location.pathname === item.path}
-                                    sx={{ color: theme.palette.primary.contrastText }}
-                                >
-                                    {item.icon && React.cloneElement(item.icon, { sx: { mr: 1 } })}
-                                    <ListItemText primary={item.text} />
-                                </ListItem>
-                            ))}
-                        </List>
-                    </Box>
-                </Drawer>
+  const getFirstPhotoUrl = (arr) => {
+    if (!Array.isArray(arr)) return null;
+    const first = arr.find(u => typeof u === 'string' && u.trim() !== '');
+    if (!first) return null;
+    const base = process.env.REACT_APP_BASE_URL?.replace(/\/$/,'') || '';
+    return first.startsWith('/uploads/') ? `${base}${first}` : first;
+  };
 
-                {/* Main Content Area */}
-                <Box
-                    component="main"
-                    sx={{
-                        flexGrow: 1,
-                        p: 4,
-                        width: '100%',
-                        marginTop: '56px',
-                        paddingTop: '100px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                    }}
-                >
-                    <Typography
-                        variant="h3"
-                        align="center"
-                        gutterBottom
-                        sx={{
-                            color: theme.palette.text.primary,
-                            mb: 4,
-                            mt: 2,
-                            maxWidth: '90%',
-                            mx: 'auto',
-                            animation: `${fadeIn} 0.8s ease-out forwards`,
-                            animationDelay: '0.2s',
-                        }}
-                    >
-                        Manage Reported Posts
-                    </Typography>
+  const sorted = useMemo(() => {
+    const order = { pending: 1, normally: 2, block: 3 };
+    return [...reportedPosts].sort((a,b)=>{
+      const s = (order[a.status]||99) - (order[b.status]||99);
+      if (s !== 0) return s;
+      return new Date(b.reported_at) - new Date(a.reported_at);
+    });
+  }, [reportedPosts]);
 
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
-                        <TextField
-                            variant="outlined"
-                            size="small"
-                            placeholder="ค้นหารายงาน (ID, Post ID, Username, เหตุผล, สถานะ...)"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            InputProps={{
-                                startAdornment: <SearchIcon sx={{ mr: 1, color: 'action.active' }} />,
-                            }}
-                            sx={{ width: { xs: '100%', sm: 'auto' }, mb: { xs: 2, sm: 0 }, flexGrow: 1, mr: { sm: 2 } }}
-                        />
-                    </Box>
+  // Responsive, clamped column widths so the table NEVER exceeds viewport
+  const col = {
+    img: 'clamp(56px, 8vw, 96px)',
+    id: 'clamp(96px, 10vw, 132px)',
+    title: 'clamp(160px, 24vw, 300px)',
+    by: 'clamp(120px, 16vw, 200px)',
+    reason: 'clamp(140px, 20vw, 240px)',
+    at: 'clamp(132px, 18vw, 200px)',
+    status: 'clamp(96px, 10vw, 120px)',
+    actions: 'clamp(88px, 8vw, 108px)'
+  };
 
-                    <TableContainer component={MainContentPaper} sx={{ maxWidth: '1200px', width: '100%' }}>
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell sx={{ fontWeight: 'bold', color: theme.palette.text.primary }}>Post Image</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold', color: theme.palette.text.primary }}>Post ID</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold', color: theme.palette.text.primary }}>Post Title</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold', color: theme.palette.text.primary }}>Reported By</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold', color: theme.palette.text.primary }}>Reason</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold', color: theme.palette.text.primary }}>Reported At</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold', color: theme.palette.text.primary }}>Status</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold', color: theme.palette.text.primary }}>Actions</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {sortedReportedPosts.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={8} align="center">
-                                            ไม่พบรายการรายงาน
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    sortedReportedPosts.map((report) => (
-                                        <TableRow key={report.report_id}>
-                                            <TableCell>
-                                                {getFirstPhotoUrl(report.post_image_url) ? (
-                                                    <img
-                                                        src={getFirstPhotoUrl(report.post_image_url)}
-                                                        alt="Post"
-                                                        style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: '4px' }}
-                                                    />
-                                                ) : (
-                                                    <Avatar variant="rounded" sx={{ width: 50, height: 50, bgcolor: theme.palette.grey[300] }}>
-                                                        No Img
-                                                    </Avatar>
-                                                )}
-                                            </TableCell>
-                                            <TableCell sx={{ color: theme.palette.text.secondary }}>{report.actual_post_id}</TableCell>
-                                            <TableCell sx={{ color: theme.palette.text.secondary }}>{report.post_title}</TableCell>
-                                            <TableCell sx={{ color: theme.palette.text.secondary }}>{report.reported_by_username}</TableCell>
-                                            <TableCell sx={{ color: theme.palette.text.secondary }}>{report.reason}</TableCell>
-                                            <TableCell sx={{ color: theme.palette.text.secondary }}>
-                                                {new Date(report.reported_at).toLocaleDateString('en-US', {
-                                                    year: 'numeric',
-                                                    month: 'long',
-                                                    day: 'numeric',
-                                                    hour: '2-digit',
-                                                    minute: '2-digit',
-                                                    second: '2-digit',
-                                                    hour12: false
-                                                })}
-                                            </TableCell>
-                                            <TableCell sx={{ color: theme.palette.text.secondary }}>{report.status}</TableCell>
-                                            <TableCell>
-                                                <IconButton onClick={() => handleEdit(report)}>
-                                                    <EditIcon sx={{ color: theme.palette.chartBlue.main }} />
-                                                </IconButton>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+  const handleSave = async () => {
+    if (!selectedReport) return;
+    const token = localStorage.getItem('token');
+    try {
+      await axios.put(
+        `${process.env.REACT_APP_BASE_URL}/admin/reports/${selectedReport.report_id}`,
+        { status: selectedReport.status },
+        { headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' } }
+      );
+      setOpenEdit(false);
+      fetchReported(currentSearchTerm);
+    } catch (e) {
+      alert('Failed to update report status');
+    }
+  };
 
-                    <Dialog open={openDialog} onClose={handleCloseDialog}>
-                        <DialogTitle sx={{ color: theme.palette.text.primary }}>Edit Report Status</DialogTitle>
-                        <DialogContent>
-                            <FormControl fullWidth margin="dense" sx={{ mt: 2 }}>
-                                <InputLabel id="status-label">Status</InputLabel>
-                                <Select
-                                    labelId="status-label"
-                                    value={selectedPost?.status || ''}
-                                    label="Status"
-                                    onChange={(e) => setSelectedPost({ ...selectedPost, status: e.target.value })}
-                                >
-                                    <MenuItem value="block">Block</MenuItem>
-                                    <MenuItem value="normally">Normally</MenuItem>
-                                    <MenuItem value="pending">Pending</MenuItem>
-                                </Select>
-                            </FormControl>
-                        </DialogContent>
-                        <DialogActions>
-                            <Button onClick={handleCloseDialog} sx={{ color: theme.palette.text.secondary }}>Cancel</Button>
-                            <Button onClick={handleSave} variant="contained" sx={{ bgcolor: theme.palette.primary.main, color: theme.palette.primary.contrastText }}>Save</Button>
-                        </DialogActions>
-                    </Dialog>
-                </Box>
-            </Box>
-        </ThemeProvider>
-    );
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+
+      {/* Pastel background */}
+      <Backdrop>
+        <Aurora />
+        {[{size:6,x:12,y:22,delay:.2},{size:10,x:28,y:66,delay:.4},{size:8,x:70,y:28,delay:.1},{size:12,x:84,y:58,delay:.5},{size:9,x:45,y:40,delay:.3},{size:7,x:60,y:75,delay:.2}]
+          .map((p,i)=><Particle key={i} {...p} />)}
+      </Backdrop>
+
+      {/* AppBar */}
+      <AppBar position="fixed">
+        <Toolbar sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:2 }}>
+          <Box sx={{ display:'flex', alignItems:'center', gap:2 }}>
+            <IconButton edge="start" color="inherit" onClick={()=>setIsDrawerOpen(true)} sx={{ mr:1 }}>
+              <MenuIcon />
+            </IconButton>
+            <Typography variant="h6" sx={{ fontWeight:800 }}>Manage Reported Posts</Typography>
+          </Box>
+
+          <Box sx={{ display:'flex', alignItems:'center', gap:2, ml:'auto' }}>
+            <TextField
+              variant="outlined" size="small" placeholder="Search reports..."
+              value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)}
+              InputProps={{ startAdornment:<SearchIcon sx={{ mr:1, color:'action.active' }}/> }}
+              sx={{
+                width:{ xs:220, sm:320 },
+                '& .MuiOutlinedInput-root': {
+                  borderRadius:'999px', bgcolor:'#fff',
+                  boxShadow:'0 4px 12px rgba(0,0,0,0.08)'
+                }
+              }}
+            />
+            <Button color="inherit" onClick={handleLogout} startIcon={<ExitToAppIcon/>}
+              sx={{ bgcolor:'#fff', color:'text.primary', borderRadius:1, px:2, '&:hover':{ bgcolor:'neutral.100' } }}>
+              Logout
+            </Button>
+          </Box>
+        </Toolbar>
+      </AppBar>
+
+      {/* Drawer */}
+      <Drawer anchor="left" open={isDrawerOpen} onClose={()=>setIsDrawerOpen(false)}>
+        <Box
+          sx={{ width:280, background:'linear-gradient(180deg, rgba(19,22,29,0.96), rgba(19,22,29,0.92))', color:'#fff', height:'100%' }}
+          role="presentation" onClick={()=>setIsDrawerOpen(false)}
+        >
+          <Box sx={{ p:2.5 }}>
+            <Typography sx={{ fontWeight:800, letterSpacing:'.06em' }}>MENU</Typography>
+          </Box>
+          <Divider sx={{ borderColor:'rgba(255,255,255,0.08)' }} />
+          <List>
+            {menuItems.map((item) => (
+              <ListItem
+                key={item.text} component={Link} to={item.path}
+                selected={location.pathname === item.path}
+                sx={{
+                  mx:1.2, my:0.6, borderRadius:0, color:'#fff',
+                  '& .MuiListItemIcon-root': { color:'#fff', minWidth:36 },
+                  '&.Mui-selected': { background: alpha('#fff',0.08) },
+                  '&:hover': { background: alpha('#fff',0.12) }
+                }}
+              >
+                <ListItemIcon>{item.icon}</ListItemIcon>
+                <ListItemText primary={item.text} />
+              </ListItem>
+            ))}
+          </List>
+        </Box>
+      </Drawer>
+
+      {/* Main */}
+      <Box sx={{ position:'relative', zIndex:1, px:{ xs:2, md:4 }, pt:{ xs:12, md:14 }, pb:6, maxWidth:'100%', mx:'auto' }}>
+        <Box sx={{ textAlign:'center', mb:3 }}>
+          <Typography variant="h2">Reported Posts</Typography>
+        </Box>
+
+        <TableShell component={Paper}>
+          <Table stickyHeader sx={{ tableLayout:'fixed', width:'100%' }}>
+            <colgroup>
+              <col style={{ width: col.img }} />
+              <col style={{ width: col.id }} />
+              <col style={{ width: col.title }} />
+              <col style={{ width: col.by }} />
+              <col style={{ width: col.reason }} />
+              <col style={{ width: col.at }} />
+              <col style={{ width: col.status }} />
+              <col style={{ width: col.actions }} />
+            </colgroup>
+
+            <TableHead>
+              <TableRow>
+                <TableCell>Post Image</TableCell>
+                <TableCell>Post ID</TableCell>
+                <TableCell>Post Title</TableCell>
+                <TableCell>Reported By</TableCell>
+                <TableCell>Reason</TableCell>
+                <TableCell>Reported At</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+
+            <TableBody>
+              {sorted.length === 0 ? (
+                <TableRow><TableCell colSpan={8} align="center">No reports found.</TableCell></TableRow>
+              ) : sorted.map((r) => {
+                const img = getFirstPhotoUrl(r.post_image_url);
+                return (
+                  <HoverRow key={r.report_id}>
+                    <TableCell>
+                      {img ? (
+                        <a href={img} target="_blank" rel="noopener noreferrer">
+                          <img src={img} alt="Post" style={{ width: 'clamp(44px, 6vw, 64px)', height: 'clamp(44px, 6vw, 64px)', objectFit:'cover', borderRadius:8 }} />
+                        </a>
+                      ) : (
+                        <Avatar variant="rounded" sx={{ width:'clamp(44px, 6vw, 64px)', height:'clamp(44px, 6vw, 64px)', bgcolor: theme.palette.neutral[100], color: theme.palette.text.secondary }}>
+                          N/A
+                        </Avatar>
+                      )}
+                    </TableCell>
+
+                    <TableCell><span style={oneLine}>{r.actual_post_id}</span></TableCell>
+
+                    <TableCell>
+                      <Tooltip title={r.post_title || ''} arrow>
+                        <span style={oneLine}>{r.post_title}</span>
+                      </Tooltip>
+                    </TableCell>
+
+                    <TableCell>
+                      <Tooltip title={r.reported_by_username || ''} arrow>
+                        <span style={oneLine}>{r.reported_by_username}</span>
+                      </Tooltip>
+                    </TableCell>
+
+                    <TableCell>
+                      <Tooltip title={r.reason || ''} arrow>
+                        <span style={oneLine}>{r.reason}</span>
+                      </Tooltip>
+                    </TableCell>
+
+                    <TableCell>
+                      <span style={oneLine}>
+                        {r.reported_at ? new Date(r.reported_at).toLocaleString('en-GB') : '-'}
+                      </span>
+                    </TableCell>
+
+                    <TableCell><StatusChip value={r.status} /></TableCell>
+
+                    <TableCell>
+                      <PastelIconBtn color="blue" onClick={()=>{ setSelectedReport(r); setOpenEdit(true); }}>
+                        <EditIcon />
+                      </PastelIconBtn>
+                    </TableCell>
+                  </HoverRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableShell>
+      </Box>
+
+      {/* Edit Dialog */}
+      <Dialog open={openEdit} onClose={()=>setOpenEdit(false)} PaperProps={{ sx:{ p:0.5, minWidth:360 }}}>
+        <DialogTitle sx={{ fontWeight:800 }}>Edit Report Status</DialogTitle>
+        <DialogContent dividers>
+          <FormControl fullWidth margin="dense">
+            <InputLabel>Status</InputLabel>
+            <Select
+              label="Status"
+              value={selectedReport?.status || ''}
+              onChange={(e)=> setSelectedReport({ ...selectedReport, status: e.target.value })}
+            >
+              <MenuItem value="block">Block</MenuItem>
+              <MenuItem value="normally">Normally</MenuItem>
+              <MenuItem value="pending">Pending</MenuItem>
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=>setOpenEdit(false)} color="secondary">Cancel</Button>
+          <Button onClick={handleSave} variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
+    </ThemeProvider>
+  );
 };
 
 export default ManageReportedPosts;
