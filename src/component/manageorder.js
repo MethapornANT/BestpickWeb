@@ -4,8 +4,7 @@ import {
   AppBar, Toolbar, Typography, Button, Box, Paper,
   Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, IconButton, Dialog, DialogActions, DialogContent,
-  DialogTitle, TextField, ThemeProvider, createTheme,
-  Drawer, List, ListItem, ListItemText, FormControl,
+  DialogTitle, TextField, Drawer, List, ListItem, ListItemText,
   CssBaseline, Chip, Divider, ListItemIcon
 } from '@mui/material';
 import axios from 'axios';
@@ -23,7 +22,7 @@ import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import SearchIcon from '@mui/icons-material/Search';
 import { useAuth } from '../AuthContext';
 import { keyframes } from '@emotion/react';
-import { styled, alpha } from '@mui/material/styles';
+import { styled, alpha, createTheme, ThemeProvider } from '@mui/material/styles';
 
 // ===== Animations =====
 const fadeIn = keyframes`
@@ -79,7 +78,6 @@ const theme = createTheme({
         }
       }
     },
-    
     MuiTableCell: {
       styleOverrides: {
         head: {
@@ -118,7 +116,6 @@ const float = keyframes`
   to { transform: translateY(0px); }
 `;
 
-
 // ===== Background (subtle pastel aurora over light gray) =====
 const Backdrop = styled('div')(({ theme }) => ({
   position: 'fixed', inset: 0, overflow: 'hidden', zIndex: 0,
@@ -155,15 +152,14 @@ const Particle = styled('span')(({ size = 8, x = 50, y = 50, delay = 0 }) => ({
   opacity: 0.9
 }));
 
-
 const StatusChip = ({ value }) => {
   const val = String(value || '').toLowerCase();
   const map = {
-    pending: { bg: theme.palette.pastel.lemon, color: theme.palette.neutral[900], label: 'pending' },
-    approved:{ bg: theme.palette.pastel.blue,  color: theme.palette.neutral[900], label: 'approved' },
-    paid:    { bg: theme.palette.pastel.blue,  color: theme.palette.neutral[900], label: 'paid' },
-    active:  { bg: theme.palette.pastel.mint,  color: theme.palette.neutral[900], label: 'active' },
-    rejected:{ bg: theme.palette.pastel.pink,  color: theme.palette.neutral[900], label: 'rejected' },
+    pending:  { bg: theme.palette.pastel.lemon, color: theme.palette.neutral[900], label: 'pending' },
+    approved: { bg: theme.palette.pastel.blue,  color: theme.palette.neutral[900], label: 'approved' },
+    paid:     { bg: theme.palette.pastel.blue,  color: theme.palette.neutral[900], label: 'paid' },
+    active:   { bg: theme.palette.pastel.mint,  color: theme.palette.neutral[900], label: 'active' },
+    rejected: { bg: theme.palette.pastel.pink,  color: theme.palette.neutral[900], label: 'rejected' },
   };
   const s = map[val] || { bg: theme.palette.neutral[100], color: theme.palette.neutral[900], label: val || 'N/A' };
   return (
@@ -199,7 +195,7 @@ const ManageOrders = () => {
   const [adminNotesError, setAdminNotesError] = useState('');
   const [editStatus, setEditStatus] = useState('');
 
-  // drawer handlers (FIX error)
+  // drawer handlers
   const handleMenuClick = useCallback(() => setIsDrawerOpen(true), []);
   const handleDrawerClose = useCallback(() => setIsDrawerOpen(false), []);
 
@@ -271,17 +267,32 @@ const ManageOrders = () => {
   };
 
   const handleSave = async () => {
-    const finalStatus = editStatus || currentOrder.status;
+    const original = (currentOrder.status || 'pending').toLowerCase();
+    const finalStatus = (editStatus || currentOrder.status || '').toLowerCase();
+
+    // enforce: if current is pending, admin can only set approved or rejected
+    if (original === 'pending' && !['approved','rejected'].includes(finalStatus)) {
+      alert('คำเตือน: ออเดอร์สถานะ pending อนุญาตให้เปลี่ยนเป็น Approved หรือ Rejected เท่านั้น');
+      return;
+    }
+
     const requireNote = finalStatus === 'rejected';
     if (requireNote && (!adminNotes || adminNotes.trim() === '')) {
       setAdminNotesError('กรุณากรอกเหตุผลที่ Reject');
       return;
     }
+
     const token = localStorage.getItem('token');
     try {
       await axios.put(
         `${process.env.REACT_APP_BASE_URL}/admin/orders/${currentOrder.id}`,
-        { title: currentOrder.title, content: currentOrder.content, link: currentOrder.link, status: finalStatus, admin_notes: requireNote ? adminNotes : undefined },
+        {
+          title: currentOrder.title,
+          content: currentOrder.content,
+          link: currentOrder.link,
+          status: finalStatus || original,
+          admin_notes: requireNote ? adminNotes : undefined
+        },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setOpenDialog(false);
@@ -354,7 +365,7 @@ const ManageOrders = () => {
                 startAdornment: <SearchIcon sx={{ mr: 1, color: 'action.active' }} />,
               }}
               sx={{
-                width: { xs: 180, sm: 240 },     // smaller and right-aligned
+                width: { xs: 180, sm: 240 },
                 '& .MuiOutlinedInput-root': {
                   borderRadius: '999px',
                   bgcolor: '#fff',
@@ -512,31 +523,36 @@ const ManageOrders = () => {
           {/* Status buttons */}
           <Box sx={{ mt: 1, mb: 1.5 }}>
             <Typography sx={{ fontWeight: 800, mb: 1 }}>Status</Typography>
-            <Box sx={{ display:'flex', gap: 1 }}>
-              {['active','rejected'].map(s => {
-                const selected = (editStatus || currentOrder.status) === s;
+            <Box sx={{ display:'flex', gap: 1, flexWrap: 'wrap' }}>
+              {(() => {
+                const original = (currentOrder.status || 'pending').toLowerCase();
+                const allowed = original === 'pending' ? ['approved','rejected'] : ['active','rejected'];
                 const styleMap = {
-                  active: { bg: theme.palette.pastel.mint },
-                  rejected: { bg: theme.palette.pastel.pink }
+                  approved: { bg: theme.palette.pastel.blue },
+                  active:   { bg: theme.palette.pastel.mint },
+                  rejected: { bg: theme.palette.pastel.pink },
                 };
-                return (
-                  <Button
-                    key={s}
-                    onClick={()=>setEditStatus(s)}
-                    sx={{
-                      borderRadius: 999,
-                      px: 2.2,
-                      fontWeight: 800,
-                      bgcolor: selected ? styleMap[s].bg : theme.palette.neutral[100],
-                      color: theme.palette.neutral[900],
-                      boxShadow: selected ? '0 6px 16px rgba(0,0,0,0.08)' : 'none',
-                      '&:hover': { bgcolor: selected ? styleMap[s].bg : theme.palette.neutral[200] }
-                    }}
-                  >
-                    {s.charAt(0).toUpperCase()+s.slice(1)}
-                  </Button>
-                );
-              })}
+                return allowed.map((s) => {
+                  const selected = (editStatus || currentOrder.status) === s;
+                  return (
+                    <Button
+                      key={s}
+                      onClick={()=>setEditStatus(s)}
+                      sx={{
+                        borderRadius: 999,
+                        px: 2.2,
+                        fontWeight: 800,
+                        bgcolor: selected ? styleMap[s].bg : theme.palette.neutral[100],
+                        color: theme.palette.neutral[900],
+                        boxShadow: selected ? '0 6px 16px rgba(0,0,0,0.08)' : 'none',
+                        '&:hover': { bgcolor: selected ? styleMap[s].bg : theme.palette.neutral[200] }
+                      }}
+                    >
+                      {s.charAt(0).toUpperCase()+s.slice(1)}
+                    </Button>
+                  );
+                });
+              })()}
             </Box>
           </Box>
 

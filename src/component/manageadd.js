@@ -142,7 +142,8 @@ const Particle = styled('span')(({ size = 8, x = 50, y = 50, delay = 0 }) => ({
 
 const TableShell = styled(TableContainer)(({ theme }) => ({
   animation: `${fadeIn} .5s ease-out`,
-  maxWidth: 1480,
+  width: '100%',
+  maxWidth: '100%',
   margin: '0 auto'
 }));
 const HoverRow = styled(TableRow)(({ theme }) => ({
@@ -151,6 +152,29 @@ const HoverRow = styled(TableRow)(({ theme }) => ({
     background: alpha(theme.palette.pastel.blue, .3),
     animation: `${rowHover} .18s ease forwards`
   }
+}));
+
+// 2-line clamp utility for cells (keeps table height stable and prevents overflow)
+const Clamp = styled('div')(({ lines = 2 }) => ({
+  display: '-webkit-box',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: lines,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'normal',
+  wordBreak: 'break-word'
+}));
+
+// Link clamp: break long URLs without growing the cell
+const LinkClamp = styled('a')(({ theme }) => ({
+  display: '-webkit-box',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: 2,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'normal',
+  wordBreak: 'break-all',
+  color: theme.palette.primary.main
 }));
 
 const PillSearch = styled(TextField)(({ theme }) => ({
@@ -325,7 +349,6 @@ const ManageAds = () => {
   };
 
   const handleSave = async () => {
-    // ถ้าเลือก rejected ต้องมีเหตุผล
     if (editStatus === 'rejected' && (!adminNotes || adminNotes.trim() === '')) {
       setAdminNotesError('กรุณากรอกเหตุผลที่ Reject');
       return;
@@ -381,10 +404,10 @@ const ManageAds = () => {
   }
 
   /* -------------------- Columns width -------------------- */
-  const colSx = {
-    id:{ width: 80 }, img:{ width: 130 }, title:{ width: 220 }, content:{ width: 280 },
-    link:{ width: 200 }, show:{ width: 130 }, created:{ width: 170 }, updated:{ width: 170 },
-    exp:{ width: 160 }, status:{ width: 130 }, actions:{ width: 120 }
+  // เปอร์เซ็นต์รวม = 100% (พอดีจอ 1920 โดยไม่ต้องสกอลล์บน PC)
+  const pct = {
+    id:'3%', img:'7%', title:'14%', content:'14%', link:'14%', show:'8%',
+    created:'8%', updated:'8%', exp:'8%', status:'8%', actions:'8%'
   };
 
   return (
@@ -477,21 +500,36 @@ const ManageAds = () => {
           <Typography variant="h2">Manage Advertisements</Typography>
         </Box>
 
-        <TableShell component={Paper}>
-          <Table stickyHeader>
+        <TableShell component={Paper} sx={{ overflowX: { xs: 'auto', lg: 'visible' } }}>
+          <Table stickyHeader sx={{ tableLayout: 'fixed', width: '100%' }}>
+            {/* Percent-based fixed widths so everything fits on 1920px */}
+            <colgroup>
+              <col style={{ width: pct.id }} />
+              <col style={{ width: pct.img }} />
+              <col style={{ width: pct.title }} />
+              <col style={{ width: pct.content }} />
+              <col style={{ width: pct.link }} />
+              <col style={{ width: pct.show }} />
+              <col style={{ width: pct.created }} />
+              <col style={{ width: pct.updated }} />
+              <col style={{ width: pct.exp }} />
+              <col style={{ width: pct.status }} />
+              <col style={{ width: pct.actions }} />
+            </colgroup>
+
             <TableHead>
               <TableRow>
-                <TableCell sx={colSx.id}>ID</TableCell>
-                <TableCell sx={colSx.img}>Image</TableCell>
-                <TableCell sx={colSx.title}>Title</TableCell>
-                <TableCell sx={colSx.content}>Content</TableCell>
-                <TableCell sx={colSx.link}>Link</TableCell>
-                <TableCell sx={colSx.show}>Show At</TableCell>
-                <TableCell sx={colSx.created}>Created At</TableCell>
-                <TableCell sx={colSx.updated}>Updated At</TableCell>
-                <TableCell sx={colSx.exp}>Expiration</TableCell>
-                <TableCell sx={colSx.status}>Status</TableCell>
-                <TableCell sx={colSx.actions}>Actions</TableCell>
+                <TableCell>ID</TableCell>
+                <TableCell>Image</TableCell>
+                <TableCell>Title</TableCell>
+                <TableCell>Content</TableCell>
+                <TableCell>Link</TableCell>
+                <TableCell>Show At</TableCell>
+                <TableCell>Created At</TableCell>
+                <TableCell>Updated At</TableCell>
+                <TableCell>Expiration</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
 
@@ -503,8 +541,8 @@ const ManageAds = () => {
               ) : (
                 sortedAds.map((ad) => (
                   <HoverRow key={ad.id}>
-                    <TableCell sx={colSx.id}>{ad.id}</TableCell>
-                    <TableCell sx={colSx.img}>
+                    <TableCell>{ad.id}</TableCell>
+                    <TableCell>
                       {ad.image ? (
                         <a
                           href={`${process.env.REACT_APP_BASE_URL}${ad.image}`}
@@ -522,17 +560,29 @@ const ManageAds = () => {
                       )}
                     </TableCell>
 
-                    <TableCell sx={colSx.title}>{ad.title || '-'}</TableCell>
-                    <TableCell sx={colSx.content}>{ad.content || '-'}</TableCell>
-                    <TableCell sx={colSx.link}>
-                      {ad.link ? <a href={ad.link} target="_blank" rel="noopener noreferrer">{ad.link}</a> : 'N/A'}
+                    <TableCell>
+                      <Clamp>{ad.title || '-'}</Clamp>
                     </TableCell>
-                    <TableCell sx={colSx.show}>{ad.show_at ? new Date(ad.show_at).toLocaleDateString('en-GB') : 'N/A'}</TableCell>
-                    <TableCell sx={colSx.created}>{new Date(ad.created_at).toLocaleString('en-GB')}</TableCell>
-                    <TableCell sx={colSx.updated}>{new Date(ad.updated_at).toLocaleString('en-GB')}</TableCell>
-                    <TableCell sx={colSx.exp}>{ad.expiration_date ? new Date(ad.expiration_date).toLocaleString('en-GB') : 'N/A'}</TableCell>
-                    <TableCell sx={colSx.status}><StatusChip value={ad.status} /></TableCell>
-                    <TableCell sx={colSx.actions}>
+                    <TableCell>
+                      <Clamp>{ad.content || '-'}</Clamp>
+                    </TableCell>
+                    <TableCell>
+                      {ad.link ? (
+                        <LinkClamp href={ad.link} target="_blank" rel="noopener noreferrer">{ad.link}</LinkClamp>
+                      ) : 'N/A'}
+                    </TableCell>
+                    <TableCell>{ad.show_at ? new Date(ad.show_at).toLocaleDateString('en-GB') : 'N/A'}</TableCell>
+                    <TableCell>
+                      <Clamp lines={2}>{new Date(ad.created_at).toLocaleString('en-GB')}</Clamp>
+                    </TableCell>
+                    <TableCell>
+                      <Clamp lines={2}>{new Date(ad.updated_at).toLocaleString('en-GB')}</Clamp>
+                    </TableCell>
+                    <TableCell>
+                      <Clamp lines={2}>{ad.expiration_date ? new Date(ad.expiration_date).toLocaleString('en-GB') : 'N/A'}</Clamp>
+                    </TableCell>
+                    <TableCell><StatusChip value={ad.status} /></TableCell>
+                    <TableCell>
                       <IconButton
                         onClick={() => handleEdit(ad)}
                         sx={{ mr: 1, bgcolor: theme.palette.pastel.blue, '&:hover':{ bgcolor: alpha(theme.palette.pastel.blue,.8) } }}
@@ -601,7 +651,7 @@ const ManageAds = () => {
             value={showAt} onChange={(e)=>setShowAt(e.target.value)} sx={{ mb: 2 }}
           />
 
-          {/* Status buttons (ชัดว่าถูกเลือก) */}
+          {/* Status buttons */}
           <Box sx={{ mt: 1, mb: 1.5 }}>
             <Typography sx={{ fontWeight: 800, mb: 1 }}>Status</Typography>
             <Box sx={{ display:'flex', gap: 1 }}>
@@ -627,7 +677,7 @@ const ManageAds = () => {
             </Box>
           </Box>
 
-          { (editStatus || currentAd.status) === 'rejected' && (
+          {(editStatus || currentAd.status) === 'rejected' && (
             <TextField
               margin="dense" label="เหตุผลที่ Reject (บันทึกถึงผู้ใช้)" type="text" fullWidth
               value={adminNotes} onChange={(e)=>{ setAdminNotes(e.target.value); setAdminNotesError(''); }}
