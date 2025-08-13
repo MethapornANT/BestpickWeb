@@ -156,26 +156,23 @@ const StatusChip = ({ value }) => {
   const val = String(value || '').toLowerCase();
   const map = {
     pending:  { bg: theme.palette.pastel.lemon, color: theme.palette.neutral[900], label: 'pending' },
-    approved: { bg: theme.palette.pastel.blue,  color: theme.palette.neutral[900], label: 'approved' },
     paid:     { bg: theme.palette.pastel.blue,  color: theme.palette.neutral[900], label: 'paid' },
-    active:   { bg: theme.palette.pastel.mint,  color: theme.palette.neutral[900], label: 'active' },
     rejected: { bg: theme.palette.pastel.pink,  color: theme.palette.neutral[900], label: 'rejected' },
+    expired:  { bg: theme.palette.neutral[200], color: theme.palette.neutral[900], label: 'expired' },
+    // เหลือ approved/active ไว้รองรับหน้าอื่นได้ แต่จะไม่ถูกดึงมาแสดงในหน้านี้
+    approved: { bg: theme.palette.pastel.blue,  color: theme.palette.neutral[900], label: 'approved' },
+    active:   { bg: theme.palette.pastel.mint,  color: theme.palette.neutral[900], label: 'active' },
   };
   const s = map[val] || { bg: theme.palette.neutral[100], color: theme.palette.neutral[900], label: val || 'N/A' };
   return (
     <Chip
       label={s.label}
-      sx={{
-        bgcolor: s.bg,
-        color: s.color,
-        fontWeight: 800,
-        borderRadius: 999,
-        height: 26
-      }}
+      sx={{ bgcolor: s.bg, color: s.color, fontWeight: 800, borderRadius: 999, height: 26 }}
       size="small"
     />
   );
 };
+
 
 // ===== ManageOrders =====
 const ManageOrders = () => {
@@ -212,12 +209,17 @@ const ManageOrders = () => {
   useEffect(() => { if (!isAdmin()) navigate('/login'); }, [isAdmin, navigate]);
 
   const sortOrders = (orders) => {
-    const nonRejected = orders.filter(o => String(o.status).toLowerCase() !== 'rejected')
-      .sort((a,b) => new Date(a.updated_at) - new Date(b.updated_at));
-    const rejected = orders.filter(o => String(o.status).toLowerCase() === 'rejected')
-      .sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at));
-    return [...nonRejected, ...rejected];
+    const STATUS_ORDER = { paid: 1, pending: 2, rejected: 3, expired: 4 };
+    return orders
+      .filter(o => ['paid','pending','rejected','expired'].includes(String(o.status).toLowerCase()))
+      .sort((a, b) => {
+        const sa = STATUS_ORDER[String(a.status).toLowerCase()] ?? 99;
+        const sb = STATUS_ORDER[String(b.status).toLowerCase()] ?? 99;
+        if (sa !== sb) return sa - sb; // จัดกลุ่มตามลำดับความสำคัญ
+        return new Date(b.updated_at) - new Date(a.updated_at); // ใหม่สุดในกลุ่มก่อน
+      });
   };
+  
 
   const fetchOrders = useCallback(async (query='') => {
     const token = localStorage.getItem('token');
@@ -225,9 +227,13 @@ const ManageOrders = () => {
       const res = await axios.get(`${process.env.REACT_APP_BASE_URL}/admin/orders`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+  
+      // ดึงเฉพาะสถานะที่ต้องการแสดง
       let filtered = res.data.filter(order =>
-        ['pending','paid','rejected','approved','active'].includes(String(order.status).toLowerCase())
+        ['pending','paid','rejected','expired'].includes(String(order.status).toLowerCase())
       );
+  
+      // ค้นหา
       if (query) {
         const q = query.toLowerCase();
         filtered = filtered.filter(order =>
@@ -238,12 +244,14 @@ const ManageOrders = () => {
           (order.user_id && String(order.user_id).includes(q))
         );
       }
+  
       setOrders(sortOrders(filtered));
     } catch (e) {
       setOrders([]);
       if (e?.response?.status === 401) { handleLogout(); navigate('/login'); }
     }
   }, [handleLogout, navigate]);
+  
 
   useEffect(() => {
     const h = setTimeout(() => setCurrentSearchTerm(searchQuery), 250);
