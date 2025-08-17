@@ -194,7 +194,6 @@ const StatusChip = ({ value }) => {
   const map = {
     active:  { bg: theme.palette.pastel.mint,  color: theme.palette.neutral[900], label: 'active' },
     expired: { bg: theme.palette.pastel.lilac, color: theme.palette.neutral[900], label: 'expired' },
-    pending: { bg: theme.palette.pastel.lemon, color: theme.palette.neutral[900], label: 'pending' },
     rejected:{ bg: theme.palette.pastel.pink,  color: theme.palette.neutral[900], label: 'rejected' },
   };
   const s = map[val] || { bg: theme.palette.neutral[100], color: theme.palette.neutral[900], label: val || 'N/A' };
@@ -287,9 +286,9 @@ const ManageAds = () => {
     if (!Array.isArray(ads) || ads.length === 0) return [];
     const filtered = ads.filter(ad => {
       const s = String(ad.status || '').toLowerCase();
-      return ['active', 'expired', 'pending', 'rejected'].includes(s);
+      return ['active', 'expired', 'rejected'].includes(s);
     });
-    const order = { active: 1, pending: 2, expired: 3, rejected: 4 };
+    const order = { active: 1, expired: 2, rejected: 3 };
     return [...filtered].sort((a, b) => {
       const sa = order[String(a.status || '').toLowerCase()] || 99;
       const sb = order[String(b.status || '').toLowerCase()] || 99;
